@@ -238,6 +238,7 @@ async function telaInicio() {
   $$(".ferr").forEach((b) => (b.onclick = () => (location.hash = b.dataset.h)));
   const vp = $("#ver-planos"); if (vp) vp.onclick = () => (c.teste_usado ? paywall() : (location.hash = "#/cortar"));
   const [ped, vit] = await Promise.all([api("/api/pedidos"), api("/api/vitrine").catch(() => ({ secoes: [] }))]);
+  if (!$("#andamento")) return; // a pessoa já mudou de tela
   const and = ped.pedidos.filter((p) => !["pronto", "erro"].includes(p.estado));
   $("#andamento").innerHTML = and.length ? `<h2>Em andamento</h2>${and.map((p) => `<a class="card" href="#/pedido/${p.id}" style="display:block;margin-bottom:10px;color:var(--txt)">
     <b>${esc(nomePedido(p))}</b><div class="ajuda" style="margin:4px 0 8px">${esc(p.etapa || "Começando")} · ${esc(p.estimativa)}</div><div class="barrinha"><i style="width:${Math.round(p.progresso * 100)}%"></i></div></a>`).join("")}` : "";

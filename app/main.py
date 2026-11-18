@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 from app import admin, auth, avisos, fila, mailer, planos, senha_rotas
@@ -255,7 +256,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         if f and f.get("titulo"):
             return {"chave": chave, "titulo": f["titulo"], "canal": f["canal"], "duracao": f["duracao"], "capa": f["capa"], "ao_vivo": False, "pronta": f["estado"] == "pronta"}
         try:
-            i = fonte.info(url, cfg)
+            i = await run_in_threadpool(fonte.info, url, cfg)
         except fonte.ErroFonte as e:
             raise HTTPException(422, str(e))
         ctx = fonte.contexto(i)
@@ -298,7 +299,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         chave = fonte.chave_rapida(url)
         if not chave:
             try:
-                chave = fonte.chave_de_info(fonte.info(url, cfg))
+                chave = fonte.chave_de_info(await run_in_threadpool(fonte.info, url, cfg))
             except fonte.ErroFonte as e:
                 raise HTTPException(422, str(e))
         db.exec("INSERT OR IGNORE INTO fontes(chave,url,criado) VALUES(?,?,?)", (chave, url, agora()))
@@ -409,7 +410,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         db.exec("DELETE FROM trabalhos WHERE id=?", (tid,))
         return {"ok": True}
 
-    @app.get("/api/pedidos/{tid}/arquivo/{nome}")
+    @app.api_route("/api/pedidos/{tid}/arquivo/{nome}", methods=["GET", "HEAD"])
     def arquivo(tid: str, nome: str, request: Request, baixar: int = 0):
         u = usuario(request)
         if not re.fullmatch(r"[\w-]{1,60}\.(mp4|jpg|png|mp3)", nome):
@@ -457,7 +458,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         if "legenda" in b:
             perfil["legenda"] = bool(b["legenda"])
         n = int(time.time()) % 100000
-        feito = montar.personalizado(s, pf, corte, perfil, fila.pasta_trabalho(cfg, tid), f"corte{k}_e{n}", cfg, var)
+        feito = await run_in_threadpool(montar.personalizado, s, pf, corte, perfil, fila.pasta_trabalho(cfg, tid), f"corte{k}_e{n}", cfg, var)
 
         def por(r):
             for x in r.get("cortes", []):
@@ -536,7 +537,10 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         ideia = str(b.get("ideia") or "").strip()[:800]
         if len(ideia) < 6:
             raise HTTPException(422, "Conta em uma frase sobre o que é o vídeo.")
-        return animacao_v2.roteiro(ideia, b.get("formato") or "auto", int(b.get("segundos") or 61), cfg)
+        try:
+            return await run_in_threadpool(animacao_v2.roteiro, ideia, b.get("formato") or "auto", int(b.get("segundos") or 61), cfg)
+        except Exception:  # noqa: BLE001
+            raise HTTPException(503, "A IA está ocupada agora. Tenta de novo em 1 minuto.")
 
     @app.post("/api/animacao")
     async def animacao(request: Request):
@@ -570,7 +574,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         from app import video_ia
         u = usuario(request)
         b = await request.json()
-        return video_ia.previa(db, u, str(b.get("pedido") or "")[:500], b.get("molde") or "livre", b.get("ajuste") or "", cfg)
+        return await run_in_threadpool(video_ia.previa, db, u, str(b.get("pedido") or "")[:500], b.get("molde") or "livre", b.get("ajuste") or "", cfg)
 
     @app.get("/api/video_ia/previa/{nome}")
     def video_ia_previa_arquivo(nome: str, request: Request):
