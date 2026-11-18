@@ -221,8 +221,8 @@ def narrar(partes: list[tuple[str, float]], voz: str, destino: Path) -> tuple[li
     pasta = destino.parent
     arquivos, palavras, faixas, t = [], [], [], 0.0
 
-    async def um(texto: str, arq: Path) -> list[dict]:
-        com = edge_tts.Communicate(texto, voz, rate="+12%", boundary="WordBoundary")
+    async def um_voz(texto: str, arq: Path, v: str) -> list[dict]:
+        com = edge_tts.Communicate(texto, v, rate="+12%", boundary="WordBoundary")
         ws = []
         with open(arq, "wb") as f:
             async for c in com.stream():
@@ -233,9 +233,23 @@ def narrar(partes: list[tuple[str, float]], voz: str, destino: Path) -> tuple[li
                     ws.append({"t0": a, "t1": a + c["duration"] / 1e7, "w": c["text"]})
         return ws
 
+    def um(texto: str, arq: Path) -> list[dict]:
+        """O serviço de voz grátis às vezes não devolve áudio: tenta 3x na voz escolhida e, se não vier, usa a voz padrão."""
+        import time as _t
+        for k, v in enumerate([voz, voz, voz, VOZES["masculina"], VOZES["feminina"]]):
+            try:
+                ws = asyncio.run(um_voz(texto, arq, v))
+                if arq.exists() and arq.stat().st_size > 500:
+                    return ws
+            except Exception as e:  # noqa: BLE001
+                log.warning("voz %s tentativa %s: %s", v, k + 1, str(e)[:120])
+            _t.sleep(1.5 * (k + 1))
+        raise RuntimeError("voz indisponível")
+
     for i, (texto, pausa) in enumerate(partes):
         arq = pasta / f"parte{i}.mp3"
-        ws = asyncio.run(um(texto, arq)) if texto.strip() else []
+        texto = texto if re.search(r"\w", texto or "") else ""  # frase só de emoji/pontuação não vai pra voz
+        ws = um(texto, arq) if texto.strip() else []
         from app.pipeline import duracao
         d = duracao(arq) if arq.exists() and arq.stat().st_size else 0.0
         palavras += [{"t0": round(w["t0"] + t, 3), "t1": round(w["t1"] + t, 3), "w": w["w"]} for w in ws]
