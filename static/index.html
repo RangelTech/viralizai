@@ -1,165 +1,93 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cortaí: cortes virais prontos em minutos</title>
-<meta name="description" content="Cole o link de um vídeo do YouTube ou Instagram e receba cortes virais prontos para Reels, TikTok e Shorts, com legenda, gancho e relatório.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23ff3d6e'/><path d='M22 18l24 14-24 14z' fill='white'/></svg>">
-<link rel="stylesheet" href="/s/estilo.css">
-<style>
-/* cinema (16/11): foto atrás do topo e faixas de foto em tela cheia */
-html,body{overflow-x:clip}
-.cine{position:relative;isolation:isolate}
-.cine-fundo{position:absolute;top:0;bottom:0;left:50%;width:100vw;transform:translateX(-50%);z-index:-1;background-size:cover;background-position:center;opacity:.68;animation:cineZoom 18s ease-out both}
-.cine-fundo:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.9) 0%,rgba(0,0,0,.6) 42%,rgba(0,0,0,.12) 100%),linear-gradient(0deg,var(--bg,#050505) 0%,transparent 35%)}
-@keyframes cineZoom{from{transform:translateX(-50%) scale(1.08)}to{transform:translateX(-50%) scale(1)}}
-.cine-faixa{position:relative;min-height:78vh;display:grid;align-items:center;overflow:hidden;isolation:isolate}
-.cine-faixa>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;transform:scale(1.04);transition:transform 6s ease}
-.cine-faixa:hover>img{transform:scale(1)}
-.cine-faixa:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(0,0,0,.88),rgba(0,0,0,.55) 55%,rgba(0,0,0,.15))}
-.cine-faixa .cine-txt{max-width:640px;padding:96px 0}
-.cine-faixa .cine-etq{display:inline-block;font-size:13px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--ac,#fff);margin-bottom:14px}
-.cine-faixa h2{font-size:clamp(40px,5.6vw,76px);line-height:1;letter-spacing:-.02em;margin-bottom:18px;color:#fff}
-.cine-faixa p{font-size:19px;color:#e2e2e8;margin-bottom:28px;max-width:560px}
-@media (max-width:760px){.cine-fundo{opacity:.45}.cine-faixa{min-height:70vh}.cine-faixa:after{background:linear-gradient(0deg,rgba(0,0,0,.92) 35%,rgba(0,0,0,.45))}}
-</style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Viralizaí · Transforme live em dinheiro no TikTok</title>
+<meta name="description" content="Cole o link de uma live e receba os melhores cortes prontos, com legenda e o seu @. Animação e vídeo com IA no mesmo app.">
+<meta property="og:title" content="Viralizaí · Transforme live em dinheiro no TikTok"><meta property="og:image" content="/s/img/heroi.webp">
+<meta name="theme-color" content="#050607">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/s/landing.css?v=1">
 </head>
-<body>
-<header class="topo"><div class="wrap">
-  <a class="marca" href="/">Cort<span>aí</span></a>
-  <nav><a class="esc" href="#como">Como funciona</a><a class="esc" href="#preco">Preço</a><a class="esc" href="#faq">Dúvidas</a><button class="btn btn-sec" data-entrar>Entrar</button></nav>
-</div></header>
+<body class="">
+<nav class="top"><div class="logo"><i></i>Viraliz<b>aí</b></div><a class="ent" href="/entrar?entrar=1">Entrar</a></nav>
 
-<main>
-<section class="hero cine"><div class="cine-fundo" style="background-image:url(/s/img/heroi.webp)"></div><div class="wrap">
-  <div>
-    <span class="selo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Renda extra com cortes</span>
-    <h1>Cole um link.<br>Receba <em>cortes virais</em> prontos.</h1>
-    <p class="sub">O Cortaí assiste o vídeo por você, acha os momentos que prendem, corta no formato vertical, coloca legenda e gancho, e ainda diz por que cada corte tem chance de viralizar.</p>
-    <div class="acoes"><a class="btn btn-pri" href="#preco">Quero começar agora</a><a class="btn btn-sec" href="#como">Ver como funciona</a></div>
-    <div class="prova"><span><b>YouTube</b>, Instagram, TikTok</span><span>Pronto em <b>poucos minutos</b></span><span>Garantia de <b>7 dias</b></span></div>
+<header class="hero">
+  <div class="fundo" style="background-image:url('/s/img/heroi.webp')"></div>
+  <div class="c">
+    <div class="selo"><i></i>Novo: corte de live com IA</div>
+    <h1 class="t">Transforme <span class="cor">live de GTA</span> em dinheiro no TikTok</h1>
+    <p>Cortes, animação e vídeo com IA prontos em minutos, no seu celular. Você só posta.</p>
+    <div class="bts"><a class="btn pulsa" href="/entrar">Começar agora</a><a class="btn sec" href="#prontos">Ver vídeos prontos</a></div>
+    <div class="prova"><span>✂️ Cortes com nota de viral</span><span>✨ Animação</span><span>🤖 Vídeo com IA</span><span>📱 Tudo no celular</span></div>
   </div>
-  <div class="carrossel" id="carrossel" aria-label="Exemplos de cortes feitos pelo Cortaí">
-    <div class="trilho" id="trilho"></div>
-    <div class="pontos-c" id="pontos-c"></div>
-  </div>
-</div></section>
+</header>
+<div class="faixa"><div>CORTE DE LIVE EM 2 MINUTOS ✦ VÍDEO DE 1 MIN PRA MONETIZAR ✦ SEU @ EM TODO VÍDEO ✦ POSTA SOZINHO NO TIKTOK ✦ CORTE DE LIVE EM 2 MINUTOS ✦ VÍDEO DE 1 MIN PRA MONETIZAR ✦ SEU @ EM TODO VÍDEO ✦ POSTA SOZINHO NO TIKTOK ✦&nbsp;</div></div>
 
-<section id="como"><div class="wrap">
-  <div class="titulo-sec"><h2>Três jeitos de criar</h2><p>Você escolhe a entrada. O Cortaí entrega o vídeo pronto para postar.</p></div>
-  <div class="modos">
-    <div class="modo"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div><h3>Cole um link</h3><p>Mande um vídeo longo do YouTube, Instagram ou TikTok. Ele vira vários cortes verticais com legenda, gancho no topo e áudio ajustado.</p></div>
-    <div class="modo"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.38 3.62a2.12 2.12 0 1 1 3 3L7.37 18.64a2 2 0 0 1-.86.5l-2.87.84.84-2.87a2 2 0 0 1 .5-.86Z"/></svg></div><h3>Tela dividida com você</h3><p>Suba um vídeo seu reagindo (ou uma foto) e aplique em cima ou embaixo dos cortes, como os reacts que bombam. Animações a partir de texto agora ficam no <a href="https://anima-ai.rangeltech.net">Anima AI</a>.</p></div>
-    <div class="modo"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></div><h3>Clone um Reels</h3><p>Mande um Reels que bombou e o Cortaí recria o mesmo estilo (ritmo, legenda, gancho) com o seu conteúdo.</p></div>
+<section id="prontos"><div class="c aparece">
+  <h2 class="t">Isso aqui saiu <span class="cor">sozinho</span></h2>
+  <p class="lead">Cortes que a IA achou em lives de verdade: ela lê o chat, ouve a risada, os tiros e a sirene, e corta o momento certo.</p>
+  <div class="trilho" id="prova">
+    <div class="vid"><span>🔥 92</span><b>XUXEI O DONO DA CIDADE ALTA</b></div><div class="vid"><span>🔥 88</span><b>A POLÍCIA NÃO ACREDITOU</b></div><div class="vid"><span>🔥 85</span><b>CAIU NO CARPETE DA FESTA</b></div>
   </div>
 </div></section>
 
-<section style="background:var(--bg2)"><div class="wrap">
-  <div class="titulo-sec"><h2>Do link ao post em 4 passos</h2></div>
+<section><div class="c aparece">
+  <h2 class="t">3 passos. <span class="cor">Zero edição.</span></h2>
   <div class="passos">
-    <div class="passo"><b>Cole o link</b><span>De qualquer vídeo público com alguém falando.</span></div>
-    <div class="passo"><b>O Cortaí assiste</b><span>Transcreve tudo e procura os momentos com mais potencial.</span></div>
-    <div class="passo"><b>Corta e legenda</b><span>Vertical 9:16, legenda grande, gancho nos 3 primeiros segundos.</span></div>
-    <div class="passo"><b>Você posta</b><span>Baixe, copie a legenda e as hashtags sugeridas e publique.</span></div>
+    <div class="passo"><div class="n">1</div><h3>Cola o link</h3><p>Live do YouTube, da Twitch ou da Kick. Ou sobe um vídeo do celular.</p></div>
+    <div class="passo"><div class="n">2</div><h3>A IA corta</h3><p>Acha os momentos que o público mais reagiu e monta com legenda, título e o seu @.</p></div>
+    <div class="passo"><div class="n">3</div><h3>Você posta e ganha</h3><p>Vídeos de 1 minuto+ entram no programa que paga por view. Posta todo dia.</p></div>
   </div>
 </div></section>
 
-<section><div class="wrap relatorio">
-  <div>
-    <h2 style="font-size:clamp(28px,3.4vw,40px)">Cada corte vem com um relatório</h2>
-    <p style="color:var(--mut)">Nada de chute. O Cortaí explica por que escolheu aquele trecho e já escreve o post para você.</p>
-    <ul class="lista-ok">
-      <li>Nota de potencial viral de 0 a 100</li>
-      <li>Por que o trecho prende quem assiste</li>
-      <li>Título, legenda com chamada e hashtags</li>
-      <li>Dicas de horário e ordem de postagem</li>
-    </ul>
-  </div>
-  <div class="rel-card">
-    <div class="nota"><b>92</b><div><strong>Corte 1 · 0:41</strong><br><span style="color:var(--mut)">"O erro que quase me quebrou"</span></div></div>
-    <div class="lin"><strong>Por que pode viralizar</strong>História pessoal com reviravolta e um número surpreendente nos primeiros segundos.</div>
-    <div class="lin"><strong>Legenda sugerida</strong>Você já cometeu esse erro? Conta aqui nos comentários 👇</div>
-    <div class="lin"><strong>Hashtags</strong>#empreendedorismo #dinheiro #historiareal</div>
-  </div>
-</div></section>
-
-<section class="cine-faixa"><img src="/s/img/faixa.webp" alt="" loading="lazy"><div class="wrap"><div class="cine-txt rev">
-  <span class="cine-etq">Um vídeo longo, dez chances</span><h2>O corte que viraliza<br>já está no seu vídeo.</h2><p>O Cortaí assiste por você, acha os momentos com mais chance de prender e entrega cada corte com legenda, gancho e relatório.</p><button class="btn btn-pri" data-entrar="codigo">Quero meus cortes</button>
-</div></div></section>
-
-<section id="ganhos"><div class="wrap calc">
-  <div>
-    <span class="selo">Faça a conta</span>
-    <h2 style="font-size:clamp(28px,3.4vw,40px)">Quanto dá para ganhar com cortes?</h2>
-    <p style="color:var(--mut)">Dois jeitos de fazer dinheiro com o Cortaí: postar nos seus perfis (TikTok, Reels, Shorts e Kwai pagam por visualização) e vender pacotes de cortes para criadores. Mexa nos números.</p>
-    <label for="c-dia">Vídeos postados por dia: <b id="c-dia-v">3</b></label><input type="range" id="c-dia" min="1" max="10" value="3">
-    <label for="c-views">Visualizações médias por vídeo: <b id="c-views-v">10 mil</b></label><input type="range" id="c-views" min="1" max="100" value="10">
-    <label for="c-cli">Criadores para quem você vende cortes: <b id="c-cli-v">2</b></label><input type="range" id="c-cli" min="0" max="10" value="2">
-  </div>
-  <div class="calc-res">
-    <span>Você pode chegar a</span>
-    <div class="calc-n" id="c-mes">R$ 0</div>
-    <span>por mês</span>
-    <div class="calc-lin"><span>Monetização dos vídeos</span><b id="c-mon">R$ 0</b></div>
-    <div class="calc-lin"><span>Venda de cortes</span><b id="c-vend">R$ 0</b></div>
-    <p class="calc-base">Conta: vídeos/dia × 30 dias × visualizações × R$ 1,50 a cada mil (média estimada dos programas de criadores), mais R$ 300 por criador (pacote de 20 cortes a R$ 15).</p>
-    <a class="btn btn-pri" href="#preco" style="width:100%">Quero começar</a>
-  </div>
-</div></section>
-
-<section id="preco" style="background:var(--bg2)"><div class="wrap">
-  <div class="titulo-sec"><span class="selo urg">Preço de lançamento até <b id="lanc-data">30/11</b></span><h2 style="margin-top:12px">Escolha seu plano</h2><p>Comece hoje. Se não gostar, a garantia de 7 dias devolve seu dinheiro.</p></div>
-  <div class="precos" id="planos"><div class="vazio">Carregando os planos…</div></div>
-  <p style="max-width:720px;margin:24px auto 0;text-align:center;color:var(--mut);font-size:13px">Os ganhos são simulações: dependem de quanto você posta, do engajamento e das regras de cada plataforma. Pague com o mesmo e-mail que vai usar para entrar.</p>
-</div></section>
-
-<section id="faq"><div class="wrap">
-  <div class="titulo-sec"><h2>Dúvidas</h2></div>
-  <div class="faq">
-    <details><summary>Quais links funcionam?</summary><p>Vídeos públicos do YouTube, Instagram (Reels e vídeos), TikTok e a maioria dos sites de vídeo. Vídeos privados, que pedem login, e lives em andamento não funcionam.</p></details>
-    <details><summary>Funciona com live longa?</summary><p>Sim. Pode mandar live ou podcast de 3, 4, até 6 horas. O Cortaí ouve tudo, marca os momentos de grito e reação e escolhe os melhores trechos da live inteira.</p></details>
-    <details><summary>Quanto tempo demora?</summary><p>Normalmente de 2 a 10 minutos para vídeos de até 1 hora; uma live longa leva mais: cerca de 20 minutos por hora de live (uma live de 3 horas fica pronta em torno de 1 hora). Mandamos um e-mail quando terminar. Você pode fechar a página: mandamos um e-mail quando os cortes ficam prontos.</p></details>
-    <details><summary>Posso postar cortes de vídeos de outras pessoas?</summary><p>Use vídeos seus ou que você tem permissão para usar, e dê crédito ao criador original. Muitos criadores liberam cortes do seu conteúdo; confira as regras de cada canal.</p></details>
-    <details><summary>Preciso saber editar?</summary><p>Não. O corte já sai pronto: vertical, legendado, com gancho e áudio ajustado. É só baixar e postar.</p></details>
-    <details><summary>Como cancelo?</summary><p>Pela própria Cakto, a plataforma de pagamento, a qualquer momento. Você continua usando até o fim do mês pago.</p></details>
-  </div>
-</div></section>
-</main>
-
-<footer><div class="wrap"><span><span class="marca" style="font-size:16px">Cort<span>aí</span></span> · um produto Rangel Tech</span><span>contato@rangeltech.net</span></div></footer>
-
-<div class="modal" id="m-entrar" hidden role="dialog" aria-modal="true" aria-labelledby="m-tit">
-  <div class="caixa">
-    <button class="x" data-fechar aria-label="Fechar">×</button>
-    <div id="passo-email">
-      <h3 id="m-tit">Entrar no Cortaí</h3>
-      <p>Sem senha: mandamos um código para o seu e-mail.</p>
-      <form id="f-email"><label for="email">Seu e-mail</label><input id="email" type="email" autocomplete="email" required placeholder="voce@email.com">
-      <button class="btn btn-pri" style="width:100%;margin-top:14px" type="submit">Receber código</button></form>
+<section><div class="c aparece">
+  <h2 class="t">Quanto dá pra <span class="cor">ganhar?</span></h2>
+  <div class="calc">
+    <div>
+      <label>Vídeos por dia: <span class="val" id="vpd-v">3</span></label><input type="range" id="vpd" min="1" max="10" value="3">
+      <label style="margin-top:18px">Views por vídeo: <span class="val" id="vw-v">10 mil</span></label><input type="range" id="vw" min="1000" max="200000" step="1000" value="10000">
+      <small>Conta: vídeos × 30 dias × mil views × ~R$ 2,50 (média paga por mil views em vídeo de 1 min+). É estimativa: depende das suas views e das regras do TikTok.</small>
     </div>
-    <div id="passo-codigo" hidden>
-      <h3>Digite o código</h3>
-      <p id="cod-txt">Mandamos 6 números para o seu e-mail.</p>
-      <form id="f-cod"><input id="codigo" class="cod" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="000000">
-      <button class="btn btn-pri" style="width:100%;margin-top:14px" type="submit">Entrar</button></form>
-      <button class="btn btn-sec" style="width:100%;margin-top:8px" id="voltar-email" type="button">Usar outro e-mail</button>
-    </div>
-    <div id="passo-senha" hidden>
-      <h3>Conta de demonstração</h3>
-      <p>Entre com o e-mail e a senha da demonstração.</p>
-      <form id="f-senha"><label for="d-email">E-mail</label><input id="d-email" type="email" autocomplete="username" required>
-      <label for="d-senha" style="margin-top:12px">Senha</label><input id="d-senha" type="password" autocomplete="current-password" required>
-      <button class="btn btn-pri" style="width:100%;margin-top:16px" type="submit">Entrar</button></form>
-      <button class="btn btn-sec" style="width:100%;margin-top:8px" id="voltar-codigo" type="button">Entrar com código no e-mail</button>
-    </div>
-    <div class="msg" id="m-msg" role="alert"></div>
-    <button class="link-demo" id="link-senha" type="button">Entrar com senha (conta de demonstração)</button>
+    <div class="res"><div style="font-weight:800;color:var(--txt2)">pode chegar a</div><div class="t" id="res">R$ 2.250</div><div style="font-weight:800">por mês</div></div>
   </div>
-</div>
-<script src="/s/login.js" data-conta="/api/conta" data-destino="/painel"></script>
-<script src="/s/vendas.js"></script>
-<script src="/s/carrossel.js"></script>
-<script src="/s/olho.js"></script>
+</div></section>
+
+<section><div class="c aparece">
+  <h2 class="t">4 ferramentas. <span class="cor">1 app.</span></h2>
+  <div class="ferr">
+    <div class="f"><div class="ic">✂️</div><div><h3>Cortar live</h3><p>Nota de viral 0 a 100 com o porquê, gancho pronto, legenda e hashtags. Cortes de 61 a 90 s pra monetizar.</p></div></div>
+    <div class="f"><div class="ic">✨</div><div><h3>Criar animação</h3><p>Top 5, quiz, conversa de WhatsApp, notícia urgente, história narrada. Você escreve a ideia, sai pronto com voz.</p></div></div>
+    <div class="f"><div class="ic">🤖</div><div><h3>Vídeo com IA</h3><p>Bicho dançando, objeto cantando, pegadinha. Prévia grátis antes de gastar, refaz grátis se não ficar bom.</p></div></div>
+    <div class="f"><div class="ic">🎬</div><div><h3>Editar meu vídeo</h3><p>Seu @, legenda automática, título no topo e "esticar pra 1 min" pra entrar na monetização.</p></div></div>
+  </div>
+</div></section>
+
+<section id="planos-sec"><div class="c aparece">
+  <h2 class="t">Escolha e <span class="cor">comece hoje</span></h2>
+  <p class="lead">Teste grátis: 1 corte de prévia com o seu estilo. Sem cartão.</p>
+  <div class="planos" id="planos"></div>
+  <div class="moedas" id="moedas"></div>
+</div></section>
+
+<section><div class="c aparece">
+  <div class="garantia"><div class="t">7</div><div><h3 style="margin:0 0 6px;font-size:24px">Dias de garantia</h3><p style="margin:0;color:var(--txt2)">Não curtiu? Pede o dinheiro de volta em até 7 dias, sem pergunta.</p></div></div>
+  <h2 class="t">Perguntas</h2>
+  <details><summary>Preciso saber editar?</summary><p>Não. Você cola o link e recebe o vídeo pronto, com legenda, título e o seu @.</p></details>
+  <details><summary>Funciona no celular?</summary><p>Foi feito pro celular. Pode até fechar o app: a gente avisa no WhatsApp quando ficar pronto.</p></details>
+  <details><summary>Como eu recebo do TikTok?</summary><p>O TikTok paga por views em vídeos de mais de 1 minuto (programa de recompensas, com regras de idade e seguidores). Por isso nossos cortes saem com 61 a 90 segundos.</p></details>
+  <details><summary>Posso cortar live de qualquer streamer?</summary><p>De vídeos públicos, sim, sempre dando o crédito ao canal original (a legenda pronta já vem com o crédito).</p></details>
+  <details><summary>E se o mesmo corte for usado por muita gente?</summary><p>Cada uso sai diferente (início, fim, enquadramento, cores, gancho), e cada corte tem limite de usos por dia.</p></details>
+</div></section>
+
+<section class="final"><div class="c aparece">
+  <h2 class="t">Sua próxima live vira <span class="cor">dinheiro</span></h2>
+  <a class="btn pulsa" href="/entrar">Começar agora</a>
+</div></section>
+
+<footer><div class="c"><span>Viralizaí · um produto <b>Rangel Tech</b></span><span><a href="/termos">Termos e privacidade</a></span></div></footer>
+<div class="fixo"><a class="btn pulsa" href="/entrar">Começar agora</a></div>
+<script src="/s/landing.js?v=1"></script>
 </body>
 </html>

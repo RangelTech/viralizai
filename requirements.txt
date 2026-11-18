@@ -4,3 +4,6 @@ httpx==0.28.1
 yt-dlp[default]>=2026.10.26
 edge-tts==7.3.1
 opencv-python-headless==4.10.0.84
+numpy>=1.26,<3
+faster-whisper==1.2.1
+ai-edge-litert==2.3.0
