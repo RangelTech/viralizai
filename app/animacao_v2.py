@@ -101,11 +101,32 @@ def roteiro(ideia: str, formato: str, segundos: int, cfg) -> dict:
     formato = formato if formato in FORMATOS else escolher_formato(ideia)
     segundos = max(20, min(90, int(segundos or 61)))
     extra, esquema = EXTRA[formato]
-    j = _llm(BASE.format(ideia=ideia, segundos=segundos, palavras=int(segundos * 2.5), formato=FORMATOS[formato][0], desc=FORMATOS[formato][1],
-                         extra=extra, esquema=esquema), cfg)
-    j["formato"] = formato
-    j["segundos"] = segundos
-    return validar(j)
+    limite = int(segundos * 2.6)  # palavras que cabem no tempo (voz a +12%)
+    prompt = BASE.format(ideia=ideia, segundos=segundos, palavras=limite, formato=FORMATOS[formato][0], desc=FORMATOS[formato][1],
+                         extra=extra, esquema=esquema)
+    j = _llm(prompt, cfg)
+    j["formato"], j["segundos"] = formato, segundos
+    r = validar(j)
+    if palavras(r) > limite * 1.3:  # passou do tempo: o diretor reescreve 1 vez, mais curto
+        try:
+            j2 = _llm(prompt + chr(10) * 2 + f"ATENÇÃO: o vídeo tem {segundos} segundos. Use NO MÁXIMO {limite} palavras de fala no total (some todas as falas).", cfg, 0.6)
+            j2["formato"], j2["segundos"] = formato, segundos
+            r2 = validar(j2)
+            if palavras(r2) < palavras(r):
+                r = r2
+        except Exception:  # noqa: BLE001
+            pass
+    if palavras(r) > limite * 1.3 and formato in ("historia", "curiosidade", "impacto", "noticia"):
+        while palavras(r) > limite * 1.15 and len(r["cenas"]) > 3:  # tira cenas do meio; gancho e chamada final ficam
+            r["cenas"].pop(len(r["cenas"]) // 2)
+    return r
+
+
+def palavras(r: dict) -> int:
+    n = sum(len(c.get("fala", "").split()) for c in r.get("cenas") or [])
+    if r.get("conversa"):
+        n = sum(len(m["texto"].split()) for m in r["conversa"]["mensagens"]) // 2
+    return n
 
 
 def _txt(v, n: int = 300) -> str:
