@@ -66,43 +66,62 @@ def invalidar_trecho(pasta_fonte: Path, ini: float, fim: float) -> None:
     pc = pasta_corte(pasta_fonte, ini, fim)
     for n in ("trecho.json", "trecho.mp4"):
         (pc / n).unlink(missing_ok=True)
-    for f in pc.glob("filtro_*.txt"):
+    for f in list(pc.glob("filtro_*.txt")) + list(pc.glob("vertical_*.mp4")):
         f.unlink(missing_ok=True)
 
 
 def _filtro_trecho(origem: Path, layout: str = "auto") -> str:
-    """Filtro 9:16 sobre o TRECHO INTEIRO (tempo t do trecho), guardado em filtro.txt: o rastreio de rosto roda 1 vez
-    por trecho, e qualquer variação de borda só faz trim depois."""
+    """Filtro 9:16 sobre o TRECHO INTEIRO (tempo t do trecho), guardado em filtro_<layout>.txt: o rastreio de rosto roda 1 vez."""
     cache = origem.parent / f"filtro_{layout}.txt"
     if cache.exists():
         return cache.read_text(encoding="utf-8")
     from app.pipeline import tamanho_video
     w, h = tamanho_video(str(origem))
     if h and w and h >= w:
-        f = f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[v0]"
+        f = f"[0:v]fps=30,scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[v0]"
     elif h and w and layout in ("rosto", "podcast", "react") and (pos := _seguir_rosto(str(origem), 0.0, duracao(origem), [], w, h)):
-        f = pos
-    else:  # gameplay horizontal: fundo desfocado + jogo no meio, maior
-        f = (f"[0:v]split[a][b];[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=20:2,eq=brightness=-0.12[fundo];"
+        f = pos.replace("[0:v]", "[0:v]fps=30,", 1)
+    else:  # gameplay horizontal: fundo desfocado (calculado em 180x320, 16x mais barato) + jogo no meio, maior
+        f = (f"[0:v]fps=30,split[a][b];[a]scale=180:320:force_original_aspect_ratio=increase,crop=180:320,boxblur=6:1,scale={W}:{H},eq=brightness=-0.12[fundo];"
              f"[b]crop='min(iw,ih*3/4)':ih,scale={W}:{int(W * 4 / 3)}[frente];[fundo][frente]overlay=(W-w)/2:(H-h)/2-70,setsar=1[v0]")
     cache.write_text(f, encoding="utf-8")
     return f
 
 
+def vertical(origem: Path, layout: str = "auto") -> Path:
+    """O trecho inteiro já em 9:16, SEM texto: feito 1 vez por trecho e layout (vários clientes no mesmo corte = 1 render pesado).
+    Cada cliente depois só corta, varia e põe a legenda por cima (render leve)."""
+    from app.motor.analise import trava
+    dest = origem.parent / f"vertical_{layout}.mp4"
+    with trava("vertical:" + str(dest)):
+        if dest.exists() and dest.stat().st_size > 1000:
+            return dest
+        tmp = dest.with_suffix(".tmp.mp4")
+        r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(origem), "-filter_complex", _filtro_trecho(origem, layout), "-map", "[v0]", "-map", "0:a?",
+                            "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-g", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
+                            "-movflags", "+faststart", str(tmp)], capture_output=True, text=True)
+        if r.returncode != 0:
+            tmp.unlink(missing_ok=True)
+            raise RuntimeError("ffmpeg vertical: " + r.stderr[-400:])
+        tmp.replace(dest)
+    return dest
+
+
 def _render(origem: Path, ini: float, fim: float, destino: Path, zoom: float = 1.0, cor: tuple[float, float] = (0.0, 1.0),
             ass: Path | None = None, layout: str = "auto", rapido: bool = False) -> None:
-    """Um passe só: 9:16 + trim + variação + (legenda/gancho/@) + áudio normalizado."""
-    extra = [f"trim=start={ini:.3f}:end={fim:.3f}", "setpts=PTS-STARTPTS"]
+    """Corte do cliente a partir do vertical em cache: busca direta no tempo, variação, legenda/gancho/@, áudio normalizado."""
+    vert = vertical(origem, layout)
+    extra = ["setpts=PTS-STARTPTS"]
     if zoom > 1.0:
         extra.append(f"scale=iw*{zoom:.3f}:ih*{zoom:.3f},crop={W}:{H}")
     if tuple(cor) != (0.0, 1.0):
         extra.append(f"eq=brightness={cor[0]:.3f}:saturation={cor[1]:.3f}")
     if ass:
         extra.append(estilo._filtro(ass))
-    filtro = _filtro_trecho(origem, layout) + ";[v0]" + ",".join(extra) + "[v];" +         f"[0:a]atrim=start={ini:.3f}:end={fim:.3f},asetpts=PTS-STARTPTS,loudnorm=I=-14:TP=-1.5:LRA=11[a]"
-    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(origem), "-filter_complex", filtro, "-map", "[v]", "-map", "[a]",
-                        "-c:v", "libx264", "-preset", "superfast", "-crf", "27" if rapido else "24", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
-                        "-movflags", "+faststart", "-threads", "4", str(destino)], capture_output=True, text=True)
+    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{ini:.3f}", "-to", f"{fim:.3f}", "-i", str(vert), "-vf", ",".join(extra),
+                        "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-c:v", "libx264", "-preset", "superfast", "-crf", "27" if rapido else "23",
+                        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-threads", "3", str(destino)],
+                       capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError("ffmpeg: " + r.stderr[-400:])
 
