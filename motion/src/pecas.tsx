@@ -145,9 +145,9 @@ export const Progresso: React.FC<{ t: Tema }> = ({ t }) => {
   );
 };
 
-export const Arroba: React.FC<{ arroba?: string; t: Tema }> = ({ arroba, t }) =>
+export const Arroba: React.FC<{ arroba?: string; t: Tema; embaixo?: boolean }> = ({ arroba, t, embaixo }) =>
   arroba ? (
-    <div style={{ position: "absolute", top: 120, width: "100%", textAlign: "center", fontFamily: t.fonteCorpo, fontWeight: 800, fontSize: 38, color: "#ffffffcc",
+    <div style={{ position: "absolute", ...(embaixo ? { bottom: 200 } : { top: 120 }), width: "100%", textAlign: "center", fontFamily: t.fonteCorpo, fontWeight: 800, fontSize: 38, color: "#ffffffcc",
       textShadow: "0 2px 8px #000" }}>@{arroba.replace(/^@/, "")}</div>
   ) : null;
 

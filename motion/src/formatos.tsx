@@ -185,11 +185,11 @@ export const QuizF: React.FC<{ p: Props }> = ({ p }) => {
           );
         })}
       </div>
-      {!revelou && s > q.t_pergunta + 1 ? (
-        <div style={{ position: "absolute", top: 1450, width: "100%", textAlign: "center", fontFamily: t.fonteTitulo, fontSize: 200, color: t.destaque,
-          transform: `scale(${1 + 0.15 * Math.sin(f / 3)})` }}>{faltam}</div>
+      {!revelou && faltam <= 5 ? (
+        <div style={{ position: "absolute", top: 1280, width: "100%", textAlign: "center", fontFamily: t.fonteTitulo, fontSize: 220, color: t.destaque,
+          transform: `scale(${1 + 0.15 * Math.sin(f / 3)})`, textShadow: `0 0 60px ${t.destaque}` }}>{faltam}</div>
       ) : null}
-      <Legenda palavras={p.palavras} t={t} y={1640} tamanho={60} />
+      {revelou || faltam > 5 ? <Legenda palavras={p.palavras} t={t} y={1600} tamanho={60} /> : null}
     </AbsoluteFill>
   );
 };

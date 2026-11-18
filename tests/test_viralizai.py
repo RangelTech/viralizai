@@ -234,7 +234,7 @@ def test_fila_justa_primeiro_corte_de_todos(cli):
     for tid in ("A", "B"):
         db.exec("INSERT INTO trabalhos(id,usuario,tipo,entrada,estado,criado) VALUES(?,?,?,?,?,?)", (tid, 1, "cortes", "{}", "montando", agora))
     # A pediu antes e tem 3 cortes; B chegou depois
-    for k in (1, 2, 3):
+    for k in (1, 2, 3, 99):
         db.exec("INSERT INTO tarefas(trabalho,k,dados,criado) VALUES('A',?,'{}',?)", (k, agora + k))
     db.exec("INSERT INTO tarefas(trabalho,k,dados,criado) VALUES('B',1,'{}',?)", (agora + 10,))
     db.exec("INSERT INTO trabalhos(id,usuario,tipo,entrada,estado,criado) VALUES('C',1,'cortes','{}','fila',?)", (agora + 20,))
@@ -250,7 +250,9 @@ def test_fila_justa_primeiro_corte_de_todos(cli):
     db.exec("UPDATE tarefas SET estado='pronto' WHERE trabalho='A' AND k=1")
     while (y := fila._pegar(db)):
         seguintes.append(y[1].get("trabalho", y[1]["id"]) + str(y[1]["k"]))
-    assert seguintes == ["B1", "C", "A2", "A3"]
+    assert seguintes == ["B1", "C", "A2", "A3"]  # a prévia da vitrine (A99) espera os cortes do cliente
+    db.exec("UPDATE tarefas SET estado='pronto' WHERE trabalho='A' AND k IN (2,3)")
+    assert fila._pegar(db)[1]["k"] == 99
 
 
 def test_animacao_validar_esquema():

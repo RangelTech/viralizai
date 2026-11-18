@@ -18,7 +18,7 @@ export const Video: React.FC<Props> = (p) => {
       {p.formato !== "conversa" && p.formato !== "impacto" ? (
         <Sequence durationInFrames={Math.round(2.6 * fps)}><Gancho texto={p.gancho} t={t} /></Sequence>
       ) : null}
-      <Arroba arroba={p.arroba} t={t} />
+      <Arroba arroba={p.arroba} t={t} embaixo={p.formato === "conversa"} />
       <Progresso t={t} />
       <Sequence from={durationInFrames - fimFinal}><TelaFinal texto={p.final} arroba={p.arroba} t={t} /></Sequence>
       <Sons sfx={p.sfx} voz={p.voz} />
