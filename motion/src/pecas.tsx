@@ -46,10 +46,11 @@ export const Fundo: React.FC<{ t: Tema; estilo?: "grade" | "orbes" | "raios" }> 
 };
 
 // ---------------------------------------------------------------- legenda cinética (palavra falada destacada)
-export const Legenda: React.FC<{ palavras: Palavra[]; t: Tema; y?: number; tamanho?: number }> = ({ palavras, t, y = 1180, tamanho = 84 }) => {
+export const Legenda: React.FC<{ palavras: Palavra[]; t: Tema; y?: number; tamanho?: number; desde?: number }> = ({ palavras, t, y = 1180, tamanho = 84, desde = 2.6 }) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   const s = f / fps;
+  if (s < desde) return null; // o gancho ocupa a tela nos primeiros segundos
   // grupos de até 3 palavras (ou quebra em pontuação/pausa)
   const grupos: Palavra[][] = [];
   let g: Palavra[] = [];
@@ -65,13 +66,13 @@ export const Legenda: React.FC<{ palavras: Palavra[]; t: Tema; y?: number; taman
   if (!atual) return null;
   const entrada = spring({ frame: f - Math.round(atual[0].t0 * fps), fps, config: { damping: 12, stiffness: 220 } });
   return (
-    <div style={{ position: "absolute", top: y, left: 60, right: 60, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "10px 22px",
+    <div style={{ position: "absolute", top: y, left: 60, right: 60, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "14px 30px",
       transform: `scale(${0.85 + 0.15 * entrada})` }}>
       {atual.map((p, i) => {
         const falando = s >= p.t0 && s <= p.t1 + 0.05;
         return (
           <span key={i} style={{ fontFamily: t.fonteCorpo, fontWeight: 900, fontSize: tamanho, textTransform: "uppercase", lineHeight: 1.05,
-            color: falando ? t.legenda : t.texto, transform: falando ? "scale(1.12) rotate(-2deg)" : "none",
+            color: falando ? t.legenda : t.texto, transform: falando ? "scale(1.12) rotate(-2deg)" : "none", margin: falando ? "0 10px" : 0,
             WebkitTextStroke: "4px #000", paintOrder: "stroke fill", textShadow: "0 8px 24px rgba(0,0,0,.6)" }}>
             {p.w.replace(/[.,;:]+$/, "")}
           </span>

@@ -89,7 +89,7 @@ export const Conversa: React.FC<{ p: Props }> = ({ p }) => {
             {"•••".slice(0, 1 + (Math.floor(f / 6) % 3))}</div> : null}
         </div>
       </div>
-      <Legenda palavras={p.palavras} t={tema(p.variacao, p.cor)} y={1680} tamanho={64} />
+      <Legenda palavras={p.palavras} t={tema(p.variacao, p.cor)} y={1680} tamanho={64} desde={0} />
     </AbsoluteFill>
   );
 };
