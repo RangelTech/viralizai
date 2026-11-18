@@ -270,6 +270,17 @@ def _baixar(url: str, cache: Path, destino: Path) -> str:
     return destino.name
 
 
+def _leve(arq: Path, segundos: float) -> str | None:
+    """Vídeo de apoio reduzido ao que o molde precisa (720x1280, 30 fps, sem som, só a duração da cena): o render não
+    estoura memória decodificando 1080p/4K inteiro."""
+    out = arq.with_name(arq.stem + "_leve.mp4")
+    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-stream_loop", "-1", "-i", str(arq), "-t", f"{max(2.0, segundos):.2f}", "-an",
+                        "-vf", "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,fps=30", "-c:v", "libx264", "-preset", "veryfast",
+                        "-crf", "26", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)], capture_output=True, text=True)
+    arq.unlink(missing_ok=True)
+    return out.name if r.returncode == 0 and out.exists() else None
+
+
 def broll(busca: str, destino: Path, cfg) -> str | None:
     """Apoio visual da cena, nesta ordem: vídeo da Pixabay (chave grátis) > foto do Openverse (sem chave, só licença que
     permite uso comercial). O Pexels suspendeu chaves novas; não raspamos site nenhum (termos de uso)."""
@@ -280,6 +291,8 @@ def broll(busca: str, destino: Path, cfg) -> str | None:
             r = httpx.get("https://pixabay.com/api/videos/", params={"key": cfg.pixabay_key, "q": busca[:90], "per_page": 5, "safesearch": "true"}, timeout=20)
             r.raise_for_status()
             for v in r.json().get("hits") or []:
+                if re.search(r"green ?screen|chroma|subscribe|youtube|like button|logo|intro|text|countdown", str(v.get("tags") or ""), re.I):
+                    continue  # fundo verde, botão de inscreva-se e afins não servem de apoio
                 arq = (v.get("videos") or {}).get("medium") or (v.get("videos") or {}).get("small")
                 if arq and arq.get("url"):
                     return _baixar(arq["url"], Path(cfg.dados) / "broll" / f"pixabay_{v['id']}.mp4", destino)
@@ -348,7 +361,10 @@ def props(r: dict, voz: str, pasta: Path, perfil: dict, cfg) -> dict:
     cenas = []
     for i, (c, (a, b)) in enumerate(zip(r["cenas"], faixas)):
         fim = faixas[i + 1][0] if i + 1 < len(faixas) else dur
-        arq = broll(c.get("broll"), pasta / f"broll{i}.mp4", cfg) if c.get("broll") and r["formato"] in ("historia", "curiosidade", "top5", "noticia") else None
+        ultima = i == len(r["cenas"]) - 1  # a chamada final fica limpa (sem vídeo de apoio)
+        arq = broll(c.get("broll"), pasta / f"broll{i}.mp4", cfg) if c.get("broll") and not ultima and r["formato"] in ("historia", "curiosidade", "top5", "noticia") else None
+        if arq and arq.endswith(".mp4"):
+            arq = _leve(pasta / arq, fim - a + 1.0)
         cenas.append({"inicio": round(a, 2), "fim": round(fim, 2), "fala": c["fala"], "destaque": c.get("destaque") or "", "emoji": c.get("emoji") or "",
                       "enfase": c.get("enfase") or [], "icone": c.get("icone") or c.get("emoji") or "", **({"broll": arq} if arq else {})})
         if i:
@@ -394,7 +410,8 @@ def renderizar(p: dict, pasta: Path, destino: Path, avisar=None) -> None:
     (pasta / "props.json").write_text(json.dumps(p, ensure_ascii=False), encoding="utf-8")
     npx = "npx.cmd" if os.name == "nt" else "npx"
     cmd = [npx, "remotion", "render", "src/index.ts", "Viral", str(destino), f"--props={pasta / 'props.json'}", f"--public-dir={pub}",
-           "--codec=h264", "--crf=22", f"--concurrency={os.environ.get('VIRALIZAI_RENDER_CONC', '50%')}", "--log=error"]
+           "--codec=h264", "--crf=22", f"--concurrency={os.environ.get('VIRALIZAI_RENDER_CONC', '50%')}", "--log=error",
+           "--offthreadvideo-cache-size-in-bytes=268435456", "--offthreadvideo-video-threads=2"]
     r = subprocess.run(cmd, cwd=MOTION, capture_output=True, text=True, timeout=1800)
     if r.returncode != 0 or not destino.exists():
         raise RuntimeError("render: " + (r.stderr or r.stdout)[-600:])

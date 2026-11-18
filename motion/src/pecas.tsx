@@ -72,7 +72,7 @@ export const Legenda: React.FC<{ palavras: Palavra[]; t: Tema; y?: number; taman
         const falando = s >= p.t0 && s <= p.t1 + 0.05;
         return (
           <span key={i} style={{ fontFamily: t.fonteCorpo, fontWeight: 900, fontSize: tamanho, textTransform: "uppercase", lineHeight: 1.05,
-            color: falando ? t.legenda : t.texto, transform: falando ? "scale(1.12) rotate(-2deg)" : "none", margin: falando ? "0 10px" : 0,
+            color: falando ? t.legenda : t.texto, transform: falando ? "scale(1.12) rotate(-2deg)" : "none", margin: falando ? "0 18px" : 0,
             WebkitTextStroke: "4px #000", paintOrder: "stroke fill", textShadow: "0 8px 24px rgba(0,0,0,.6)" }}>
             {p.w.replace(/[.,;:]+$/, "")}
           </span>
