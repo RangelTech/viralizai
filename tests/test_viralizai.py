@@ -268,8 +268,8 @@ def test_animacao_validar_esquema():
 
 def test_paginas(cli):
     c, _ = cli
-    assert "Viraliz" in c.get("/").text and "fael_hero" not in c.get("/").text
-    assert "fael_hero" in c.get("/", headers={"host": "viralizai.fael.rangeltech.net"}).text
+    assert "Viraliz" in c.get("/").text and "vz_hero" not in c.get("/").text
+    assert "vz_hero" in c.get("/", headers={"host": "viralizai.fael.rangeltech.net"}).text
     assert c.get("/app").status_code == 200 and c.get("/termos").status_code == 200 and c.get("/health").json()["ok"]
 
 

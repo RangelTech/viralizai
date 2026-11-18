@@ -2,154 +2,174 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Viralizaí · Transforme live de GTA 6 em vídeo que viraliza</title>
-<meta name="description" content="GTA 6 lançou e a corrida começou. Cola o link da live, a IA corta os melhores momentos com o seu @ e você posta. Indicado pelo Fael.">
-<meta property="og:title" content="GTA 6 lançou. Quem posta primeiro, ganha o algoritmo."><meta property="og:image" content="/s/img/fael_hero.webp">
-<meta name="theme-color" content="#0a0705">
+<title>Viralizaí · Ganhe dinheiro com cortes</title>
+<meta name="description" content="Enquanto você rola o feed, tem gente ganhando dinheiro postando corte de GTA. Cola o link, a IA corta, você posta e começa a monetizar.">
+<meta property="og:title" content="Enquanto você rola o feed, tem gente ganhando dinheiro postando corte de GTA."><meta property="og:image" content="/s/img/vz_hero.webp">
+<meta name="theme-color" content="#050607">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/s/landing.css?v=2">
+<link rel="stylesheet" href="/s/landing.css?v=3">
 <style>
-  .cena{position:relative;overflow:hidden;padding:110px 0;min-height:88svh;display:flex;align-items:center}
-  .cena .fundo{position:absolute;inset:0;background-size:cover;background-position:center 20%;transform:scale(1.05)}
-  .cena::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,7,5,.94) 0%,rgba(10,7,5,.75) 45%,rgba(10,7,5,.15) 100%)}
-  .cena.dir::after{background:linear-gradient(270deg,rgba(10,7,5,.94) 0%,rgba(10,7,5,.75) 45%,rgba(10,7,5,.15) 100%)}
-  .cena.dir .c{display:flex;justify-content:flex-end}
+  .hero .fundo{background-position:70% 25%}
+  @media(min-width:800px){.hero h1{max-width:640px;font-size:clamp(46px,5.4vw,78px)}.hero p{max-width:540px}.hero .c{margin-left:max(20px,calc((100vw - 1140px)/2));padding-left:0}}
+  .cena{position:relative;overflow:hidden;padding:110px 0;min-height:90svh;display:flex;align-items:center}
+  .cena .fundo{position:absolute;inset:0;background-size:cover;background-position:70% 25%;transform:scale(1.04);transition:transform 8s ease-out}
+  .cena.ver .fundo{transform:scale(1.12)}
+  .cena::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,6,7,.96) 0%,rgba(5,6,7,.8) 42%,rgba(5,6,7,.1) 100%)}
   .cena .c{position:relative;z-index:2;width:100%}
   .cena .txt{max-width:560px}
-  @media(max-width:799px){
-    .cena{display:block;min-height:0;padding:0 0 64px}
-    .cena .fundo{position:relative;inset:auto;height:66svh;transform:none;background-position:center 18%}
-    .cena::after,.cena.dir::after{top:0;bottom:auto;height:66svh;background:linear-gradient(180deg,rgba(10,7,5,0) 55%,var(--bg) 100%)}
-    .cena .c{margin-top:-48px}
-    .cena.dir .c{display:block}
-  }
-  .fala{font-size:clamp(20px,2.6vw,26px);line-height:1.45;color:#f3ece2}
+  .fala{font-size:clamp(19px,2.4vw,24px);line-height:1.5;color:#e7ece9}
   .fala b{color:var(--cor)}
-  .assinatura{margin-top:18px;font-family:Anton,sans-serif;font-size:26px;color:var(--cor)}
   .urgente{display:inline-flex;gap:10px;align-items:center;background:#ff2d2d;color:#fff;font-weight:900;padding:8px 16px;border-radius:999px;font-size:14px;margin-bottom:16px;animation:pulsa 1.6s infinite}
   .relogio{display:flex;gap:10px;margin:18px 0 26px}
   .relogio div{background:rgba(0,0,0,.6);border:1px solid var(--linha);border-radius:14px;padding:10px 14px;text-align:center;min-width:72px}
   .relogio b{display:block;font-family:Anton,sans-serif;font-size:34px;color:var(--cor)}
   .relogio span{font-size:12px;color:var(--txt2)}
-  .lista-x{list-style:none;padding:0;margin:18px 0 26px}
-  .lista-x li{padding:10px 0 10px 34px;position:relative;font-size:18px;font-weight:700;border-bottom:1px solid #ffffff12}
-  .lista-x li::before{content:"✗";position:absolute;left:0;color:#ff4d4d;font-weight:900}
-  .lista-v li::before{content:"✓";color:var(--cor)}
-  .contador{font-family:Anton,sans-serif;font-size:clamp(40px,7vw,72px);color:var(--cor);line-height:1}
+  .lista{list-style:none;padding:0;margin:18px 0 26px}
+  .lista li{padding:12px 0 12px 38px;position:relative;font-size:19px;font-weight:800;border-bottom:1px solid #ffffff12}
+  .lista li::before{content:"✓";position:absolute;left:4px;color:var(--cor);font-weight:900;font-size:20px}
+  .num{counter-reset:p}
+  .num li{counter-increment:p}
+  .num li::before{content:counter(p);font-family:Anton,sans-serif;font-size:26px;top:6px}
+  .preco-de{font-size:20px;color:var(--txt2)}
+  .preco-de s{color:#ff6b6b}
+  .preco-por{font-family:Anton,sans-serif;font-size:clamp(54px,9vw,88px);color:var(--cor);line-height:1}
+  .tres{display:grid;gap:14px;margin-top:10px}
+  @media(min-width:800px){.tres{grid-template-columns:repeat(3,1fr)}}
+  .tres div{padding:26px;border-radius:22px;background:var(--card);border:1px solid var(--linha)}
+  .tres b{display:block;font-family:Anton,sans-serif;font-size:30px;color:var(--cor);text-transform:uppercase;line-height:1.05;margin-bottom:8px}
+  .tres p{margin:0;color:var(--txt2)}
+  @media(max-width:799px){
+    .cena{display:block;min-height:0;padding:0 0 64px}
+    .cena .fundo{position:relative;inset:auto;height:62svh;transform:none!important;background-position:76% 20%}
+    .cena::after{top:0;bottom:auto;height:62svh;background:linear-gradient(180deg,rgba(5,6,7,0) 55%,var(--bg) 100%)}
+    .cena .c{margin-top:-40px}
+    .hero .fundo{background-position:76% 20%}
+  }
 </style>
 </head>
-<body class="fael">
+<body>
 <nav class="top"><div class="logo"><i></i><span>Viraliz<b>aí</b></span></div><a class="ent" href="/entrar?entrar=1">Entrar</a></nav>
 
 <header class="hero">
-  <div class="fundo" style="background-image:url('/s/img/fael_hero.webp')"></div>
+  <div class="fundo" style="background-image:url('/s/img/vz_hero.webp')"></div>
   <div class="c">
-    <div class="urgente">🔴 GTA 6 LANÇOU · A CORRIDA COMEÇOU</div>
-    <h1 class="t">Enquanto você rola o feed, <span class="cor">tem gente postando corte de GTA 6</span> e crescendo.</h1>
-    <p><b>Cola o link da live, a IA acha os melhores momentos</b>, coloca legenda, gancho e o seu @. Você só posta. No celular, em 2 minutos.</p>
-    <div class="bts"><a class="btn pulsa" href="/entrar">QUERO ENTRAR AGORA</a><a class="btn sec" href="#prontos">Ver os cortes prontos 👇</a></div>
-    <div class="prova"><span>✂️ Corte com nota de viral</span><span>✨ Animação narrada</span><span>🤖 Vídeo com IA</span><span>🎁 1 corte grátis pra testar</span></div>
+    <div class="urgente">🔥 PREÇO DE LANÇAMENTO ACABANDO</div>
+    <h1 class="t">Enquanto você rola o feed, <span class="cor">tem gente ganhando dinheiro</span> postando corte de GTA.</h1>
+    <p><b>Cola o link da live, a IA corta, você posta e começa a monetizar.</b> Sem saber editar, sem aparecer, só com o celular. Seu 1º corte sai em 2 minutos.</p>
+    <div class="bts"><a class="btn pulsa" href="/entrar">QUERO GANHAR DINHEIRO</a><a class="btn sec" href="#ganhar">Ver quanto posso ganhar 💰</a></div>
+    <div class="prova"><span>💰 Vídeos de 1 min+ que monetizam</span><span>✂️ Corte com nota de viral</span><span>📱 Tudo no celular</span><span>🎁 1 corte grátis</span></div>
   </div>
 </header>
-<div class="faixa"><div>GTA 6 LANÇOU ✦ QUEM POSTA PRIMEIRO PEGA O ALGORITMO ✦ CORTE PRONTO EM 2 MINUTOS ✦ VÍDEO DE 1 MIN PRA MONETIZAR ✦ SEU @ EM TODO VÍDEO ✦ GTA 6 LANÇOU ✦ QUEM POSTA PRIMEIRO PEGA O ALGORITMO ✦ CORTE PRONTO EM 2 MINUTOS ✦ VÍDEO DE 1 MIN PRA MONETIZAR ✦ SEU @ EM TODO VÍDEO ✦&nbsp;</div></div>
+<div class="faixa"><div>GANHE DINHEIRO COM CORTES ✦ COMECE A MONETIZAR HOJE ✦ VIVA DE CORTES ✦ PARA DE PERDER TEMPO ✦ CORTE PRONTO EM 2 MINUTOS ✦ GANHE DINHEIRO COM CORTES ✦ COMECE A MONETIZAR HOJE ✦ VIVA DE CORTES ✦ PARA DE PERDER TEMPO ✦ CORTE PRONTO EM 2 MINUTOS ✦&nbsp;</div></div>
 
 <section class="cena">
-  <div class="fundo" style="background-image:url('/s/img/fael_selfie.webp')"></div>
+  <div class="fundo" style="background-image:url('/s/img/vz_aponta.webp')"></div>
   <div class="c"><div class="txt aparece">
-    <h2 class="t">Para de <span class="cor">apostar.</span> Começa a <span class="cor">produzir.</span></h2>
-    <p class="fala">Ficar no celular a noite inteira esperando a sorte mudar não leva a nada. Aqui <b>quem trabalha é a IA</b> e o que você posta <b>fica no seu perfil, crescendo todo dia</b>. Cada vídeo é uma nova chance de bombar, e não uma ficha que some.</p>
-    <ul class="lista-x lista-v"><li>Não precisa saber editar</li><li>Não precisa aparecer</li><li>Não precisa de computador</li></ul>
+    <h2 class="t">Para de perder tempo. <span class="cor">Começa a ganhar dinheiro.</span></h2>
+    <p class="fala">Você já passa horas no celular. Agora essas horas viram <b>vídeo postado</b>, e vídeo postado vira <b>dinheiro na sua conta</b>. A IA faz o trabalho pesado, você só aperta postar e <b>começa a monetizar</b>.</p>
+    <ul class="lista"><li>Não precisa saber editar</li><li>Não precisa aparecer</li><li>Não precisa de computador</li><li>Não precisa de seguidor pra começar</li></ul>
+    <a class="btn pulsa" href="/entrar">QUERO GANHAR DINHEIRO</a>
   </div></div>
 </section>
 
 <section id="prontos"><div class="c aparece">
-  <h2 class="t">Olha o que saiu <span class="cor">sozinho</span> das lives de GTA 6</h2>
-  <p class="lead">A IA lê o chat, ouve a risada, os tiros e a sirene, e corta o momento exato que a galera pirou. Arrasta pro lado 👉</p>
+  <h2 class="t">Cortes prontos <span class="cor">pra você postar e faturar</span></h2>
+  <p class="lead">A IA lê o chat, ouve a risada, os tiros e a sirene, e corta o momento exato que a galera pirou. É só escolher, colocar o seu @ e postar. Arrasta pro lado 👉</p>
   <div class="trilho" id="prova">
     <div class="vid"><span>🔥 92</span><b>PEGUEI O YURI22 COM TRATOR AO VIVO</b></div><div class="vid"><span>🔥 90</span><b>GUERRA CONTRA A POLÍCIA</b></div><div class="vid"><span>🔥 88</span><b>ALGEMADO NO MEIO DA RUA</b></div>
   </div>
 </div></section>
 
-<section class="cena dir">
-  <div class="fundo" style="background-image:url('/s/img/fael_tiktok.webp')"></div>
+<section class="cena">
+  <div class="fundo" style="background-image:url('/s/img/vz_laco.webp')"></div>
   <div class="c"><div class="txt aparece">
-    <h2 class="t">3 passos. <span class="cor">Sem enrolação.</span></h2>
-    <ul class="lista-x lista-v"><li>Cola o link da live (YouTube, Twitch ou Kick)</li><li>A IA corta os melhores momentos com o SEU @</li><li>Você posta no TikTok, Reels e Shorts</li></ul>
-    <p class="fala">Os cortes saem com <b>61 a 90 segundos</b>, o tamanho que o TikTok paga por view. Não é corte qualquer: <b>é corte feito pra monetizar.</b></p>
+    <h2 class="t">3 passos pra <span class="cor">começar a ganhar dinheiro</span></h2>
+    <ol class="lista num"><li>Cola o link da live (YouTube, Twitch ou Kick)</li><li>A IA corta os momentos que viralizam com o SEU @</li><li>Você posta no TikTok, Reels e Shorts e começa a monetizar</li></ol>
+    <p class="fala">Os cortes saem com <b>61 a 90 segundos</b>: o tamanho que o TikTok <b>paga por view</b>. Não é corte qualquer, <b>é corte feito pra dar dinheiro.</b></p>
     <a class="btn pulsa" href="/entrar">FAZER MEU 1º CORTE GRÁTIS</a>
   </div></div>
 </section>
 
-<section class="cena">
-  <div class="fundo" style="background-image:url('/s/img/fael_dinheiro.webp')"></div>
+<section class="cena" id="ganhar">
+  <div class="fundo" style="background-image:url('/s/img/vz_dinheiro.webp')"></div>
   <div class="c"><div class="txt aparece">
-    <h2 class="t">Faz a conta <span class="cor">do seu potencial</span></h2>
+    <h2 class="t">Veja quanto <span class="cor">você pode ganhar</span></h2>
     <div class="calc" style="margin-top:18px">
       <div>
         <label>Vídeos por dia: <span class="val" id="vpd-v">3</span></label><input type="range" id="vpd" min="1" max="10" value="3">
         <label style="margin-top:18px">Views por vídeo: <span class="val" id="vw-v">10 mil</span></label><input type="range" id="vw" min="1000" max="200000" step="1000" value="10000">
       </div>
-      <div class="res"><div style="font-weight:800;color:var(--txt2)">seu potencial por mês</div><div class="t" id="res">R$ 2.250</div>
-        <small>Simulação: vídeos × 30 dias × mil views × ~R$ 2,50 (média paga por mil views em vídeo de 1 min+). Depende das suas views e das regras do TikTok; não é ganho garantido.</small></div>
+      <div class="res"><div style="font-weight:800;color:var(--txt2)">você pode ganhar até</div><div class="t" id="res">R$ 2.250</div><div style="font-weight:800">por mês</div>
+        <small>Estimativa com ~R$ 2,50 por mil views em vídeo de 1 min+.</small></div>
     </div>
+    <a class="btn pulsa" href="/entrar" style="margin-top:22px">QUERO ESSE DINHEIRO</a>
   </div></div>
 </section>
 
+<section><div class="c aparece">
+  <h2 class="t">Viva de <span class="cor">cortes</span></h2>
+  <p class="lead">Tem gente que já paga as contas postando corte. O caminho é simples: postar todo dia, em várias redes, e deixar o algoritmo trabalhar.</p>
+  <div class="tres">
+    <div><b>Ganhe por view</b><p>Vídeo de 1 min+ no TikTok, Reels e Shorts entra na monetização. Cada corte é mais uma fonte de dinheiro.</p></div>
+    <div><b>Poste todo dia</b><p>Corte de live, animação e vídeo com IA: material novo todo dia, sem você gravar nada.</p></div>
+    <div><b>Escale</b><p>Mais contas, mais cortes, mais views. O app posta e agenda sozinho nos planos maiores.</p></div>
+  </div>
+</div></section>
+
 <section id="animacoes"><div class="c aparece">
-  <h2 class="t">Não tem live? <span class="cor">Cria animação.</span></h2>
-  <p class="lead">Escreve a ideia ("quanto custou o GTA 6") e sai o vídeo pronto, com voz, legenda e efeito. Esses saíram do app:</p>
+  <h2 class="t">Sem live? <span class="cor">Posta animação e fatura igual.</span></h2>
+  <p class="lead">Escreve a ideia e sai o vídeo pronto, com voz, legenda e efeito. Um vídeo novo por dia, todo dia. Esses saíram do app:</p>
   <div class="trilho" id="anims"></div>
 </div></section>
 
-<section class="cena dir">
-  <div class="fundo" style="background-image:url('/s/img/fael_laco.webp')"></div>
+<section class="cena">
+  <div class="fundo" style="background-image:url('/s/img/vz_cidade.webp')"></div>
   <div class="c"><div class="txt aparece">
-    <div class="urgente">⏳ PREÇO DE LANÇAMENTO</div>
-    <h2 class="t">GTA 6 só lança <span class="cor">uma vez.</span></h2>
-    <p class="fala">Agora todo mundo está procurando GTA 6. <b>Quem posta primeiro pega o algoritmo</b>, e daqui a umas semanas o assunto esfria. O preço de lançamento também acaba:</p>
-    <div class="relogio" id="relogio"><div><b id="rd">--</b><span>dias</span></div><div><b id="rh">--</b><span>horas</span></div><div><b id="rm">--</b><span>min</span></div><div><b id="rs">--</b><span>seg</span></div></div>
+    <div class="urgente">⏳ ÚLTIMOS DIAS DO PREÇO DE LANÇAMENTO</div>
+    <h2 class="t">Quem entra agora <span class="cor">paga menos e lucra antes.</span></h2>
+    <div class="preco-de">de <s>R$ 29,90</s> por</div>
+    <div class="preco-por">R$ 19,90<span style="font-size:22px;color:var(--txt2)">/mês</span></div>
+    <p class="fala">Menos que um lanche, pra ter uma máquina de cortes trabalhando pra você todo dia. <b>Quando o relógio zerar, o preço sobe.</b></p>
+    <div class="relogio"><div><b id="rd">--</b><span>dias</span></div><div><b id="rh">--</b><span>horas</span></div><div><b id="rm">--</b><span>min</span></div><div><b id="rs">--</b><span>seg</span></div></div>
     <a class="btn pulsa" href="#planos-sec">GARANTIR O PREÇO DE LANÇAMENTO</a>
   </div></div>
 </section>
 
 <section id="planos-sec"><div class="c aparece">
-  <h2 class="t">Escolhe e <span class="cor">começa hoje</span></h2>
-  <p class="lead">Testa de graça: 1 corte com o seu @, sem cartão. Gostou? Assina e corta todo dia.</p>
+  <h2 class="t">Escolhe e <span class="cor">começa a monetizar hoje</span></h2>
+  <p class="lead">Testa de graça: 1 corte com o seu @, sem cartão. Gostou? Assina e posta todo dia.</p>
   <div class="planos" id="planos"></div>
   <div class="moedas" id="moedas"></div>
 </div></section>
 
 <section class="cena">
-  <div class="fundo" style="background-image:url('/s/img/fael_cerca.webp')"></div>
+  <div class="fundo" style="background-image:url('/s/img/vz_comemora.webp')"></div>
   <div class="c"><div class="txt aparece">
-    <div class="contador">7 DIAS</div>
+    <div class="preco-por">7 DIAS</div>
     <h2 class="t">de garantia. <span class="cor">Risco zero.</span></h2>
-    <p class="fala">Entrou, testou e não curtiu? <b>Pede o dinheiro de volta em até 7 dias</b>, sem pergunta e sem enrolação. O risco é todo nosso.</p>
+    <p class="fala">Entrou, testou e não curtiu? <b>Devolvemos 100% do seu dinheiro em até 7 dias</b>, sem pergunta e sem enrolação.</p>
+    <a class="btn pulsa" href="/entrar">COMEÇAR A GANHAR SEM RISCO</a>
   </div></div>
 </section>
 
 <section><div class="c aparece">
   <h2 class="t">Perguntas</h2>
+  <details><summary>Como eu ganho dinheiro com isso?</summary><p>O TikTok paga por views em vídeos de mais de 1 minuto (programa de recompensas, com regras de idade e de seguidores), e Reels e Shorts também monetizam. Os cortes já saem no tamanho certo. Quanto mais você posta, mais chance de bombar e faturar.</p></details>
   <details><summary>Preciso saber editar?</summary><p>Não. Você cola o link e recebe o vídeo pronto, com legenda, título e o seu @.</p></details>
   <details><summary>Funciona só no celular?</summary><p>Funciona no celular e no computador. Pode até fechar o app: a gente avisa no WhatsApp quando ficar pronto.</p></details>
-  <details><summary>Como eu ganho com isso?</summary><p>O TikTok paga por views em vídeos de mais de 1 minuto (programa de recompensas, com regras de idade e de seguidores). Por isso os cortes saem com 61 a 90 segundos. Quanto mais você posta, mais chance de bombar.</p></details>
   <details><summary>Posso cortar live de qualquer streamer?</summary><p>De vídeos públicos, sim, sempre dando o crédito ao canal original (a legenda pronta já vem com o crédito).</p></details>
   <details><summary>E se o mesmo corte for usado por muita gente?</summary><p>Cada uso sai diferente (início, fim, enquadramento, cores, gancho), e cada corte tem limite de usos por dia.</p></details>
 </div></section>
 
-<section class="cena dir" style="min-height:70svh">
-  <div class="fundo" style="background-image:url('/s/img/fael_celular.webp')"></div>
-  <div class="c"><div class="txt aparece">
-    <h2 class="t">A live já aconteceu. <span class="cor">O corte é seu.</span></h2>
-    <p class="fala">Cola o link agora e vê o primeiro corte <b>com o seu @</b> em 2 minutos. De graça.</p>
-    <a class="btn pulsa" href="/entrar">QUERO MEU CORTE GRÁTIS</a>
-  </div></div>
-</section>
+<section class="final"><div class="c aparece">
+  <h2 class="t">Para de rolar o feed. <span class="cor">Começa a ganhar dinheiro com ele.</span></h2>
+  <a class="btn pulsa" href="/entrar">QUERO GANHAR DINHEIRO</a>
+</div></section>
 
 <footer><div class="c"><span>Viralizaí · um produto <b>Rangel Tech</b> · Colab <a href="https://www.instagram.com/faelgomeess/" target="_blank" rel="noopener">@faelgomeess</a></span><span><a href="/termos">Termos e privacidade</a></span></div></footer>
-<div class="fixo"><a class="btn pulsa" href="/entrar">QUERO ENTRAR AGORA</a></div>
-<script src="/s/landing.js?v=2"></script>
+<div class="fixo"><a class="btn pulsa" href="/entrar">QUERO GANHAR DINHEIRO</a></div>
+<script src="/s/landing.js?v=3"></script>
 <script>
 (async () => {
   let fim = new Date("2026-12-31T23:59:59-03:00");
@@ -160,6 +180,8 @@
     document.getElementById("rh").textContent = z(Math.floor(s / 3600)); s %= 3600;
     document.getElementById("rm").textContent = z(Math.floor(s / 60)); document.getElementById("rs").textContent = z(s % 60); };
   tic(); setInterval(tic, 1000);
+  const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add("ver")), { threshold: 0.2 });
+  document.querySelectorAll(".cena").forEach((el) => io.observe(el));
 })();
 </script>
 </body>
