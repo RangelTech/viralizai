@@ -648,7 +648,8 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
     def postagens(request: Request):
         u = usuario(request)
         return {"pode_postar": pode_postar(u), "contas": postar.contas_ativas(db, u["id"]), "posts": postar.posts_publicos(db, u["id"]),
-                "cacador": {**cacador.config(db, u["id"]), "pode": cacador.pode_usar(u), "rodadas": cacador.rodadas(db, u["id"])},
+                "cacador": {**cacador.config(db, u["id"]), "pode": cacador.pode_usar(u), "rodadas": cacador.rodadas(db, u["id"]),
+                            "limite_posts_dia": cacador.limite_posts_dia(u) if cacador.pode_usar(u) else 1},
                 "redes": {k: {"nome": v["nome"], "login": v["login"]} for k, v in postar.REDES.items()}}
 
     @app.post("/api/contas")

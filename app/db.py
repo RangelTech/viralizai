@@ -122,6 +122,9 @@ class Banco:
         self.con.execute("PRAGMA journal_mode=WAL")
         self.con.execute("PRAGMA foreign_keys=ON")
         self.con.executescript(ESQUEMA)
+        cols = {r[1] for r in self.con.execute("PRAGMA table_info(cacador)")}
+        if "posts_dia" not in cols:  # posts por dia em cada rede (1 a 5, conforme o plano)
+            self.con.execute("ALTER TABLE cacador ADD COLUMN posts_dia INTEGER NOT NULL DEFAULT 1")
 
     @contextmanager
     def tx(self):

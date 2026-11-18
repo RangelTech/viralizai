@@ -25,11 +25,16 @@ def pode_usar(u: dict) -> bool:
     return float(ad.get("cacador") or 0) > agora()
 
 
+def limite_posts_dia(u: dict) -> int:
+    """Posts por dia em cada rede: Piloto Automático até 5; adicional Caçador até 2."""
+    return 5 if planos.plano_ativo(u, agora()) == "piloto" else 2
+
+
 def config(db: Banco, uid: int) -> dict:
     c = db.um("SELECT * FROM cacador WHERE usuario=?", (uid,))
     if not c:
         return {"ativo": False, "temas": [], "hora": "09:00", "videos_dia": 1, "cortes_video": 3, "objetivo": "tiktok", "postar": False, "hora_post": "19:00",
-                "ultimo_dia": None}
+                "posts_dia": 1, "ultimo_dia": None}
     c["temas"] = json.loads(c["temas"])
     c["ativo"], c["postar"] = bool(c["ativo"]), bool(c["postar"])
     return c
@@ -37,6 +42,8 @@ def config(db: Banco, uid: int) -> dict:
 
 def salvar(db: Banco, uid: int, b: dict) -> dict:
     atual = config(db, uid)
+    u = db.um("SELECT * FROM usuarios WHERE id=?", (uid,)) or {}
+    posts_dia = max(1, min(limite_posts_dia(u), int(b.get("posts_dia") or atual.get("posts_dia") or 1)))
     temas = [str(t).strip()[:40] for t in (b.get("temas") if b.get("temas") is not None else atual["temas"]) if str(t).strip()][:6]
     hora = str(b.get("hora") or atual["hora"])[:5]
     hora_post = str(b.get("hora_post") or atual["hora_post"])[:5]
@@ -45,13 +52,14 @@ def salvar(db: Banco, uid: int, b: dict) -> dict:
             dt.datetime.strptime(h, "%H:%M")
         except ValueError:
             raise ValueError("Horário inválido (use 09:00).")
-    db.exec("""INSERT INTO cacador(usuario,ativo,temas,hora,videos_dia,cortes_video,objetivo,postar,hora_post,atualizado) VALUES(?,?,?,?,?,?,?,?,?,?)
+    db.exec("""INSERT INTO cacador(usuario,ativo,temas,hora,videos_dia,cortes_video,objetivo,postar,hora_post,atualizado,posts_dia) VALUES(?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(usuario) DO UPDATE SET ativo=excluded.ativo, temas=excluded.temas, hora=excluded.hora, videos_dia=excluded.videos_dia,
-               cortes_video=excluded.cortes_video, objetivo=excluded.objetivo, postar=excluded.postar, hora_post=excluded.hora_post, atualizado=excluded.atualizado""",
+               cortes_video=excluded.cortes_video, objetivo=excluded.objetivo, postar=excluded.postar, hora_post=excluded.hora_post,
+               atualizado=excluded.atualizado, posts_dia=excluded.posts_dia""",
             (uid, 1 if b.get("ativo", atual["ativo"]) else 0, json.dumps(temas, ensure_ascii=False), hora,
              max(1, min(5, int(b.get("videos_dia") or atual["videos_dia"]))), max(1, min(5, int(b.get("cortes_video") or atual["cortes_video"]))),
              b.get("objetivo") if b.get("objetivo") in ("tiktok", "viral", "reels") else atual["objetivo"],
-             1 if b.get("postar", atual["postar"]) else 0, hora_post, agora()))
+             1 if b.get("postar", atual["postar"]) else 0, hora_post, agora(), posts_dia))
     hoje_br = dt.datetime.now(BRT)
     if hora <= hoje_br.strftime("%H:%M"):
         db.exec("UPDATE cacador SET ultimo_dia=? WHERE usuario=? AND (ultimo_dia IS NULL OR ultimo_dia<?)",
@@ -113,7 +121,7 @@ def rodar(db: Banco, cfg, uid: int, criar_pedido) -> dict:
         for x in list(unicos.values())[: c["videos_dia"]]:
             try:
                 p = criar_pedido(u, x["url"], {"objetivo": c["objetivo"], "quantos": c["cortes_video"], "cacador": True,
-                                                 "postar_auto": c["postar"], "hora_post": c["hora_post"]})
+                                                 "postar_auto": c["postar"], "hora_post": c["hora_post"], "posts_dia": c.get("posts_dia") or 1})
                 db.exec("INSERT OR IGNORE INTO cacador_vistos(usuario,fonte,quando) VALUES(?,?,?)", (uid, f"yt:{x['id']}", agora()))
                 resumo["pedidos"].append({"id": p["id"], "titulo": x["titulo"][:90], "canal": x["canal"], "views": x["views"]})
             except Exception as e:  # noqa: BLE001
@@ -154,10 +162,31 @@ def iniciar(db: Banco, cfg, parar: threading.Event, criar_pedido) -> None:
     threading.Thread(target=laco, daemon=True, name="cacador").start()
 
 
+def horarios_livres(db: Banco, conta: int, hora_post: str, posts_dia: int, quantos: int, base: dt.datetime | None = None) -> list[float]:
+    """Próximos `quantos` horários livres da conta: até `posts_dia` por dia, espalhados a partir de `hora_post`
+    (intervalo de 10 h / posts_dia, mínimo 1 h), pulando horários que já passaram ou já têm post."""
+    base = base or dt.datetime.now(BRT)
+    h, m = map(int, hora_post.split(":"))
+    passo = max(3600, int(10 * 3600 / max(1, posts_dia)))
+    ocupados = [r["quando"] for r in db.todos("SELECT quando FROM posts WHERE conta=? AND estado IN ('agendado','publicando') AND quando>=?",
+                                             (conta, base.timestamp() - 3600))]
+    out: list[float] = []
+    dia = base.replace(hour=h, minute=m, second=0, microsecond=0)
+    for _ in range(400):
+        for i in range(posts_dia):
+            t = (dia + dt.timedelta(seconds=i * passo)).timestamp()
+            if t <= base.timestamp() + 120 or any(abs(t - o) < 600 for o in ocupados + out):
+                continue
+            out.append(t)
+            if len(out) >= quantos:
+                return out
+        dia += dt.timedelta(days=1)
+    return out
+
+
 def agendar_posts_do_pedido(db: Banco, cfg, t: dict, res: dict) -> int:
-    """Pedido do Caçador com "postar sozinho": o melhor corte ainda não postado vai para cada rede conectada, no próximo
-    horário de postagem; os outros ficam nos dias seguintes (1 por dia por rede, sem repetir)."""
-    from pathlib import Path
+    """Pedido do Caçador com "postar sozinho": os cortes (melhor nota primeiro) vão para cada rede conectada, até `posts_dia`
+    por dia em cada uma, nos próximos horários livres. Se o vídeo rendeu menos cortes, posta só os que existem. Sem repetir."""
     from app import fila, postar
     entrada = json.loads(t["entrada"])
     if not entrada.get("postar_auto"):
@@ -170,16 +199,11 @@ def agendar_posts_do_pedido(db: Banco, cfg, t: dict, res: dict) -> int:
     pasta = fila.pasta_trabalho(cfg, t["id"])
     n = 0
     for conta in contas:
-        ja = db.todos("SELECT quando FROM posts WHERE conta=? AND estado IN ('agendado','publicando') ORDER BY quando DESC LIMIT 1", (conta["id"],))
-        quando = proximo_horario(entrada.get("hora_post") or "19:00")
-        if ja and ja[0]["quando"] >= quando:  # já tem post na fila: este vai para o dia seguinte ao último
-            quando = ja[0]["quando"] + 86400
-        for c in cortes:
-            if db.um("SELECT 1 FROM posts WHERE conta=? AND pedido=? AND k=?", (conta["id"], t["id"], c["k"])):
-                continue
+        novos = [c for c in cortes if not db.um("SELECT 1 FROM posts WHERE conta=? AND pedido=? AND k=?", (conta["id"], t["id"], c["k"]))]
+        horarios = horarios_livres(db, conta["id"], entrada.get("hora_post") or "19:00", int(entrada.get("posts_dia") or 1), len(novos))
+        for c, quando in zip(novos, horarios):
             postar.agendar(db, cfg, t["usuario"], conta["id"], pasta / c["arquivo"], postar.legenda_pronta(c), quando, t["id"], c["k"],
                            pasta / c["capa"] if c.get("capa") else None, origem="cacador")
-            quando += 86400
             n += 1
     if n:
         avisos.novo(db, t["usuario"], f"{n} post(s) agendado(s) sozinho(s) a partir do Caçador 🚀", "/app#/postagens")

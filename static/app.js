@@ -618,14 +618,16 @@ async function telaPostagens() {
     } else {
       const c = d.cacador;
       corpo.innerHTML = `<div class="card"><h2 style="margin-top:0">🎯 Caçador: a IA busca vídeo sozinha</h2>
-        <p class="sub">Todo dia, no horário que você escolher, a IA procura os vídeos mais vistos da semana sobre os seus temas, corta os melhores momentos${d.pode_postar ? " e, se você quiser, posta sozinha 1 por dia em cada rede" : ""}. Nunca repete vídeo.</p>
+        <p class="sub">Todo dia, no horário que você escolher, a IA procura os vídeos mais vistos da semana sobre os seus temas, corta os melhores momentos${d.pode_postar ? " e, se você quiser, posta sozinha nas suas redes" : ""}. Nunca repete vídeo.</p>
         ${!c.pode ? '<div class="dica" style="margin-bottom:12px">🔒 <div>O Caçador é do plano <b>Piloto Automático</b>.</div></div>' : ""}
         <label class="campo">Temas (separe por vírgula)<input class="input" id="ct" value="${esc((c.temas || []).join(", "))}" placeholder="ex.: gta rp, podcast de humor, futebol"></label>
         <div class="grupo"><label class="campo" style="flex:1">Horário da busca<input class="input" type="time" id="ch" value="${esc(c.hora)}"></label>
         <label class="campo" style="flex:1">Vídeos por dia<select class="input" id="cv">${[1, 2, 3, 4, 5].map((n) => `<option ${n === c.videos_dia ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>
         <div class="grupo"><label class="campo" style="flex:1">Cortes por vídeo<select class="input" id="cc">${[1, 2, 3, 4, 5].map((n) => `<option ${n === c.cortes_video ? "selected" : ""}>${n}</option>`).join("")}</select></label>
         <label class="campo" style="flex:1">Postar às<input class="input" type="time" id="chp" value="${esc(c.hora_post)}"></label></div>
-        <label class="check"><input type="checkbox" id="cp" ${c.postar ? "checked" : ""}> Postar sozinho nas minhas redes conectadas (1 por dia em cada)</label>
+        <label class="check"><input type="checkbox" id="cp" ${c.postar ? "checked" : ""}> Postar sozinho nas minhas redes conectadas</label>
+        <label class="campo">Posts por dia em cada rede<select class="input" id="cpd">${[1, 2, 3, 4, 5].map((n) => `<option value="${n}" ${n === (c.posts_dia || 1) ? "selected" : ""} ${n > (c.limite_posts_dia || 1) ? "disabled" : ""}>${n}${n > (c.limite_posts_dia || 1) ? " 🔒 Piloto Automático" : ""}</option>`).join("")}</select>
+          <span class="ajuda">Se o vídeo render menos cortes, posta só os que existirem. Os horários ficam espalhados a partir do "postar às".</span></label>
         <label class="check"><input type="checkbox" id="ca" ${c.ativo ? "checked" : ""}> Caçador ligado (roda todo dia no horário)</label>
         <div class="erro-txt" id="ce"></div>
         <div class="grupo"><button class="btn pri" style="flex:1" id="csalvar">Salvar</button><button class="btn" style="flex:1" id="crodar">Buscar agora</button></div></div>
@@ -634,7 +636,7 @@ async function telaPostagens() {
           ${(r.pedidos || []).map((p) => `<a href="#/pedido/${p.id}" style="display:block;margin-top:6px">✂️ ${esc(p.titulo)} <span class="ajuda">· ${esc(p.canal)} · ${(p.views / 1000).toFixed(0)} mil views</span></a>`).join("")}</div>`).join("")
           : '<p class="ajuda">Ainda não rodou. Salva os temas e toca em "Buscar agora" pra ver funcionando.</p>'}`;
       const corpoCfg = () => ({ temas: $("#ct").value.split(",").map((x) => x.trim()).filter(Boolean), hora: $("#ch").value, videos_dia: +$("#cv").value,
-        cortes_video: +$("#cc").value, hora_post: $("#chp").value, postar: $("#cp").checked, ativo: $("#ca").checked });
+        cortes_video: +$("#cc").value, hora_post: $("#chp").value, postar: $("#cp").checked, ativo: $("#ca").checked, posts_dia: +$("#cpd").value });
       $("#csalvar").onclick = async () => { try { await api("/api/cacador", { json: corpoCfg() }); toast("Caçador salvo ✓"); rotear(); } catch (e) { $("#ce").textContent = e.message; } };
       $("#crodar").onclick = async () => {
         const b = $("#crodar"); b.disabled = true; b.textContent = "Buscando…";

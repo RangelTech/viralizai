@@ -368,3 +368,24 @@ def test_cacador_agenda_1_por_dia_por_rede(cli):
     assert [x["k"] for x in por_conta[:2]] == [2, 1]  # o de nota maior primeiro
     assert abs(por_conta[1]["quando"] - por_conta[0]["quando"] - 86400) < 1  # 1 por dia
     assert cacador.agendar_posts_do_pedido(db, c.app.state.cfg, t, res) == 0  # não duplica
+
+
+def test_cacador_varios_posts_por_dia_e_limite_do_plano(cli):
+    c, db = cli
+    from app import cacador, fila
+    _conta(c)
+    db.exec("UPDATE usuarios SET plano='piloto', ativo_ate=?", (time.time() + 9999,))
+    assert c.post("/api/cacador", json={"temas": ["x"], "posts_dia": 9}).json()["posts_dia"] == 5  # Piloto: até 5
+    db.exec("UPDATE usuarios SET plano='viral', adicionais=?", (json.dumps({"cacador": time.time() + 9999}),))
+    assert c.post("/api/cacador", json={"temas": ["x"], "posts_dia": 5}).json()["posts_dia"] == 2  # adicional: até 2
+    now = time.time()
+    db.exec("INSERT INTO contas(usuario,rede,estado,criado,atualizado) VALUES(1,'tiktok','conectada',?,?)", (now, now))
+    pasta = fila.pasta_trabalho(c.app.state.cfg, "D1"); pasta.mkdir(parents=True)
+    for k in (1, 2):
+        (pasta / f"corte{k}.mp4").write_bytes(b"0" * 1000)
+    res = {"cortes": [{"k": 1, "estado": "pronto", "arquivo": "corte1.mp4", "nota": 80}, {"k": 2, "estado": "pronto", "arquivo": "corte2.mp4", "nota": 90},
+                      {"k": 3, "estado": "erro"}]}
+    t = {"id": "D1", "usuario": 1, "entrada": json.dumps({"postar_auto": True, "hora_post": "08:00", "posts_dia": 3})}
+    assert cacador.agendar_posts_do_pedido(db, c.app.state.cfg, t, res) == 2  # pediu 3 por dia, o vídeo rendeu 2: posta 2
+    q = [x["quando"] for x in db.todos("SELECT quando FROM posts ORDER BY quando")]
+    assert len(q) == 2 and 3000 < q[1] - q[0] < 86400  # no mesmo dia, espaçados (não 1 por dia)
