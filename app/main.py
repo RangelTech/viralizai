@@ -500,8 +500,30 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
                           [{"tema": t, "titulo": NOMES_TEMA.get(t, t.title()), "itens": vitrine_sql(t, "", 12)} for t in temas if t]}
 
     @app.get("/api/publico/vitrine")
-    def vitrine_publica():
-        return {"itens": vitrine_sql("", "", 6)}
+    def vitrine_publica(tema: str = "", limite: int = 6):
+        return {"itens": vitrine_sql(tema if tema in NOMES_TEMA else "", "", max(1, min(20, limite)))}
+
+    def exemplos() -> list[dict]:
+        f = Path(cfg.dados) / "exemplos" / "exemplos.json"
+        try:
+            return [e for e in json.loads(f.read_text(encoding="utf-8")) if (Path(cfg.dados) / "exemplos" / e["arquivo"]).exists()]
+        except (OSError, ValueError, KeyError):
+            return []
+
+    @app.get("/api/publico/exemplos")
+    def exemplos_publicos():
+        return {"itens": [{"titulo": e.get("titulo"), "formato": e.get("formato"), "tema": e.get("tema"),
+                           "url": f"/api/publico/exemplos/{e['arquivo']}", "capa_url": f"/api/publico/exemplos/{e['capa']}" if e.get("capa") else None}
+                          for e in exemplos()]}
+
+    @app.get("/api/publico/exemplos/{nome}")
+    def exemplo_arquivo(nome: str):
+        if not re.fullmatch(r"[\w-]{1,80}\.(mp4|jpg)", nome):
+            raise HTTPException(404, "Não encontrado.")
+        p = Path(cfg.dados) / "exemplos" / nome
+        if not p.is_file():
+            raise HTTPException(404, "Não encontrado.")
+        return FileResponse(p, media_type="video/mp4" if nome.endswith(".mp4") else "image/jpeg", headers={"Cache-Control": "public, max-age=3600"})
 
     @app.get("/api/vitrine/{bid}/{nome}")
     def vitrine_arquivo(bid: int, nome: str):

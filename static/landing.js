@@ -18,7 +18,7 @@
   if (vpd) { vpd.oninput = vw.oninput = calc; calc(); }
   // vitrine pública (prova)
   try {
-    const r = await fetch("/api/publico/vitrine").then((x) => x.json());
+    const r = await fetch("/api/publico/vitrine?tema=gta&limite=15").then((x) => x.json());
     if (r.itens && r.itens.length) {
       $("#prova").innerHTML = r.itens.map((b) => `<div class="vid">${b.capa_url ? `<img src="${b.capa_url}" alt="" loading="lazy">` : ""}
         ${b.previa_url ? `<video muted playsinline loop preload="none" data-src="${b.previa_url}" style="position:absolute;inset:0"></video>` : ""}
@@ -26,6 +26,16 @@
       const vio = new IntersectionObserver((es) => es.forEach((e) => { const v = e.target; if (e.isIntersecting) { if (!v.src) v.src = v.dataset.src; v.play().catch(() => {}); } else v.pause(); }), { threshold: 0.5 });
       document.querySelectorAll("#prova video").forEach((v) => vio.observe(v));
     }
+  } catch {}
+  // exemplos de animação
+  try {
+    const e = await fetch("/api/publico/exemplos").then((x) => x.json());
+    if (e.itens && e.itens.length) {
+      $("#anims").innerHTML = e.itens.map((x) => `<div class="vid">${x.capa_url ? `<img src="${x.capa_url}" alt="" loading="lazy">` : ""}
+        <video muted playsinline loop preload="none" data-src="${x.url}" style="position:absolute;inset:0"></video><b>${esc(x.titulo)}</b></div>`).join("");
+      const aio = new IntersectionObserver((es) => es.forEach((en) => { const v = en.target; if (en.isIntersecting) { if (!v.src) v.src = v.dataset.src; v.play().catch(() => {}); } else v.pause(); }), { threshold: 0.5 });
+      document.querySelectorAll("#anims video").forEach((v) => aio.observe(v));
+    } else document.getElementById("animacoes").style.display = "none";
   } catch {}
   // planos ao vivo (preço e checkout vêm do servidor)
   try {
