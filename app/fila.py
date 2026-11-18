@@ -51,7 +51,10 @@ def _pegar(db: Banco) -> tuple[str, dict] | None:
         if r:
             c.execute("UPDATE trabalhos SET estado='rodando', etapa='Começando', progresso=0.02 WHERE id=?", (r["id"],))
             return "trabalho", dict(r)
-        r = c.execute("SELECT * FROM tarefas WHERE estado='fila' ORDER BY k, prioridade, criado LIMIT 1").fetchone()
+        # corte 2, 3... de um pedido só depois do 1º dele ficar pronto: o 1º corte de cada um sai com a CPU toda
+        r = c.execute("""SELECT f.* FROM tarefas f WHERE f.estado='fila' AND (f.k=1 OR f.k>=99 OR NOT EXISTS
+                         (SELECT 1 FROM tarefas p WHERE p.trabalho=f.trabalho AND p.k=1 AND p.estado IN ('fila','rodando')))
+                         ORDER BY f.k, f.prioridade, f.criado LIMIT 1""").fetchone()
         if r:
             c.execute("UPDATE tarefas SET estado='rodando' WHERE id=?", (r["id"],))
             return "tarefa", dict(r)

@@ -239,9 +239,18 @@ def test_fila_justa_primeiro_corte_de_todos(cli):
     db.exec("INSERT INTO tarefas(trabalho,k,dados,criado) VALUES('B',1,'{}',?)", (agora + 10,))
     db.exec("INSERT INTO trabalhos(id,usuario,tipo,entrada,estado,criado) VALUES('C',1,'cortes','{}','fila',?)", (agora + 20,))
     ordem = []
-    while (x := fila._pegar(db)):
-        ordem.append(x[1].get("trabalho", x[1]["id"]) + (str(x[1]["k"]) if x[0] == "tarefa" else ""))
-    assert ordem == ["A1", "B1", "C", "A2", "A3"]
+    x = fila._pegar(db)
+    ordem.append("A1")
+    assert x[1]["trabalho"] == "A" and x[1]["k"] == 1
+    # enquanto o 1º corte de A roda, o 2º de A espera: a CPU vai para o 1º de B e para a análise de C
+    seguintes = []
+    while (y := fila._pegar(db)):
+        seguintes.append(y[1].get("trabalho", y[1]["id"]) + (str(y[1]["k"]) if y[0] == "tarefa" else ""))
+    assert seguintes == ["B1", "C"]
+    db.exec("UPDATE tarefas SET estado='pronto' WHERE trabalho='A' AND k=1")
+    while (y := fila._pegar(db)):
+        seguintes.append(y[1].get("trabalho", y[1]["id"]) + str(y[1]["k"]))
+    assert seguintes == ["B1", "C", "A2", "A3"]
 
 
 def test_animacao_validar_esquema():
@@ -260,3 +269,13 @@ def test_paginas(cli):
     assert "Viraliz" in c.get("/").text and "fael_hero" not in c.get("/").text
     assert "fael_hero" in c.get("/", headers={"host": "viralizai.fael.rangeltech.net"}).text
     assert c.get("/app").status_code == 200 and c.get("/termos").status_code == 200 and c.get("/health").json()["ok"]
+
+
+def test_animacao_validar_idempotente():
+    from app import animacao_v2 as a
+    for bruto in ({"formato": "conversa", "contato": "Chefe", "mensagens": [{"de": "eu", "texto": "oi"}, {"de": "Chefe", "texto": "fala"}]},
+                  {"formato": "quiz", "pergunta": "?", "opcoes": ["a", "b", "c"], "certa": 1, "fala_pergunta": "x", "fala_revela": "y"},
+                  {"formato": "versus", "a": "A", "b": "B", "quesitos": [{"rotulo": "q", "va": 7, "vb": 3, "fala": "f"}], "abertura": "o", "veredito": "v", "vencedor": "a"},
+                  {"formato": "noticia", "faixa": "URGENTE", "manchete": "m", "cenas": [{"fala": "f"}], "numeros": [{"rotulo": "r", "valor": "1"}]}):
+        uma = a.validar(bruto)
+        assert a.validar(uma) == uma, bruto["formato"]

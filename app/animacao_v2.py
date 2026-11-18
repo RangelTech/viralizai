@@ -60,13 +60,13 @@ EXTRA = {
                 '{"titulo": "", "gancho": "", ' + ESQUEMA_CENAS + ', "legenda": "", "hashtags": []}'),
     "top5": ("Exatamente 7 cenas: 1 abertura, 5 itens do nº 5 ao nº 1 (o nº 1 é o melhor/mais chocante), 1 fechamento. Para cada item dê 'n', 'titulo' (até 3 palavras) e 'icone' (emoji).",
              '{"titulo": "", "gancho": "", "cenas": [{"fala": "", "destaque": "", "emoji": "", "enfase": [], "broll": "", "n": 0, "titulo": "", "icone": ""}], "legenda": "", "hashtags": []}'),
-    "quiz": ("Uma pergunta de conhecimento geral sobre o tema com 3 opções (só 1 certa). A narração lê a pergunta e as opções; depois o contador; depois a revelação com 1 frase de explicação.",
+    "quiz": ("Uma pergunta de conhecimento sobre o tema com 3 opções (só 1 certa). 'fala_pergunta': o narrador puxa o assunto em 1 frase, faz a pergunta e lê as 3 opções. 'fala_revela': revela a resposta e explica em 2 ou 3 frases com uma curiosidade, terminando com 'comenta quantas você acertou'.",
              '{"titulo": "", "gancho": "", "pergunta": "", "opcoes": ["", "", ""], "certa": 0, "fala_pergunta": "", "fala_revela": "", "legenda": "", "hashtags": []}'),
     "noticia": ("Notícia em tom de plantão (sobre o tema, sem inventar fato real específico se não tiver certeza: use 'rumores', 'dizem'). 4 a 6 cenas. Até 3 'numeros' com rotulo e valor curto.",
                 '{"titulo": "", "gancho": "", "faixa": "URGENTE", "manchete": "", ' + ESQUEMA_CENAS + ', "numeros": [{"rotulo": "", "valor": ""}], "legenda": "", "hashtags": []}'),
     "versus": ("Compare A contra B em 3 a 4 quesitos com notas de 0 a 10 e diga quem vence. Cada cena = 1 quesito (mais abertura e veredito).",
                '{"titulo": "", "gancho": "", "a": "", "b": "", "ia": "emoji", "ib": "emoji", "quesitos": [{"rotulo": "", "va": 0, "vb": 0, "fala": ""}], "abertura": "", "veredito": "", "vencedor": "a", "legenda": "", "hashtags": []}'),
-    "conversa": ("Conversa de WhatsApp curta e engraçada/tensa entre 'eu' e um contato, 8 a 14 mensagens curtas, com reviravolta no fim. Sem narração.",
+    "conversa": ("Conversa de WhatsApp engraçada/tensa entre 'eu' e um contato, com 12 a 18 mensagens (de 3 a 20 palavras cada), que cresce até uma reviravolta forte no fim. Em 'de' use só 'eu' ou 'outro'. Sem narração.",
                  '{"titulo": "", "gancho": "", "contato": "nome do contato", "mensagens": [{"de": "eu", "texto": ""}], "legenda": "", "hashtags": []}'),
 }
 
@@ -113,7 +113,25 @@ def _txt(v, n: int = 300) -> str:
 
 
 def validar(j: dict) -> dict:
-    """Esquema fechado: o que o molde não conhece é jogado fora; o que falta ganha valor padrão."""
+    """Esquema fechado: o que o molde não conhece é jogado fora; o que falta ganha valor padrão.
+    Idempotente: aceita tanto a resposta crua do diretor quanto um roteiro já validado (o app manda de volta o que mostrou)."""
+    j = dict(j)
+    if isinstance(j.get("quiz"), dict):
+        q = j["quiz"]
+        j.setdefault("pergunta", q.get("pergunta")); j.setdefault("opcoes", q.get("opcoes")); j.setdefault("certa", q.get("certa"))
+        j.setdefault("fala_pergunta", q.get("fala_pergunta")); j.setdefault("fala_revela", q.get("fala_revela"))
+    if isinstance(j.get("conversa"), dict):
+        j.setdefault("contato", j["conversa"].get("nome")); j.setdefault("mensagens", j["conversa"].get("mensagens"))
+    if isinstance(j.get("noticia"), dict):
+        for k in ("faixa", "manchete", "numeros"):
+            j.setdefault(k, j["noticia"].get(k))
+    if isinstance(j.get("versus"), dict) and not j.get("quesitos"):
+        v = j["versus"]
+        for k in ("a", "b", "ia", "ib", "vencedor"):
+            j.setdefault(k, v.get(k))
+        falas = [c.get("fala") for c in j.get("cenas") or []]
+        j["quesitos"] = [{**it, "fala": falas[i + 1] if i + 1 < len(falas) else it.get("rotulo")} for i, it in enumerate(v.get("itens") or [])]
+        j.setdefault("abertura", falas[0] if falas else ""); j.setdefault("veredito", falas[-1] if falas else "")
     f = j.get("formato") if j.get("formato") in FORMATOS else "curiosidade"
     out = {"formato": f, "segundos": max(20, min(90, int(j.get("segundos") or 61))), "titulo": _txt(j.get("titulo"), 80),
            "gancho": " ".join(_txt(j.get("gancho"), 60).upper().split()[:7]), "legenda": _txt(j.get("legenda"), 600),
@@ -144,7 +162,7 @@ def validar(j: dict) -> dict:
         out["noticia"] = {"faixa": _txt(j.get("faixa") or "URGENTE", 20).upper(), "manchete": _txt(j.get("manchete") or out["gancho"], 90),
                           "numeros": [{"rotulo": _txt(n.get("rotulo"), 30), "valor": _txt(n.get("valor"), 12)} for n in (j.get("numeros") or []) if isinstance(n, dict)][:3]}
     if f == "conversa":
-        msgs = [{"de": "eu" if m.get("de") == "eu" else "outro", "texto": _txt(m.get("texto"), 140)} for m in (j.get("mensagens") or [])
+        msgs = [{"de": "eu" if str(m.get("de")).lower() == "eu" else "outro", "texto": _txt(m.get("texto"), 140)} for m in (j.get("mensagens") or [])
                 if isinstance(m, dict) and _txt(m.get("texto"))][:16]
         out["conversa"] = {"nome": _txt(j.get("contato") or "Contato", 24), "mensagens": msgs}
         cenas = [{"fala": "", "destaque": ""}]
@@ -236,10 +254,13 @@ def props(r: dict, voz: str, pasta: Path, perfil: dict, cfg) -> dict:
     if f == "conversa":
         t = 1.2
         msgs = []
-        for m in r["conversa"]["mensagens"]:
+        mm = r["conversa"]["mensagens"]
+        leitura = sum(1.0 + len(m["texto"]) * 0.045 for m in mm) or 1
+        escala = max(1.0, min(2.2, (r.get("segundos", 30) - 2.7) / leitura))  # ocupa a duração pedida, sem ficar arrastado
+        for m in mm:
             msgs.append({**m, "t": round(t, 2)})
             sfx.append({"t": round(t, 2), "tipo": "notif" if m["de"] == "outro" else "pop"})
-            t += 1.0 + len(m["texto"]) * 0.045
+            t += (1.0 + len(m["texto"]) * 0.045) * escala
         p["conversa"] = {"nome": r["conversa"]["nome"], "mensagens": msgs}
         p["duracao"] = round(t + 1.5, 2)
         p["cenas"] = [{"inicio": 0, "fim": p["duracao"], "fala": "", "destaque": ""}]

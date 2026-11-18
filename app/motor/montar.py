@@ -98,7 +98,7 @@ def vertical(origem: Path, layout: str = "auto") -> Path:
             return dest
         tmp = dest.with_suffix(".tmp.mp4")
         r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(origem), "-filter_complex", _filtro_trecho(origem, layout), "-map", "[v0]", "-map", "0:a?",
-                            "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-g", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
+                            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "17", "-g", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
                             "-movflags", "+faststart", str(tmp)], capture_output=True, text=True)
         if r.returncode != 0:
             tmp.unlink(missing_ok=True)
