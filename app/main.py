@@ -1,4 +1,4 @@
-"""Cortaí: site de cortes virais. API + páginas estáticas no mesmo serviço."""
+"""Viralizaí (spec 47): cortes de live, animação, vídeo com IA e editor num app só. API + páginas no mesmo serviço."""
 from __future__ import annotations
 
 import hashlib
@@ -7,112 +7,176 @@ import json
 import logging
 import os
 import re
+import secrets
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 
-from app import senha_rotas
-from app import auth, fila, mailer
+from app import admin, auth, avisos, fila, mailer, planos, senha_rotas
 from app.config import Config, carregar
 from app.db import Banco, agora
-from app import admin  # painel /admin e prompts editáveis
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 ESTATICO = Path(__file__).resolve().parent.parent / "static"
-COOKIE = "cortai_s"
+COOKIE = "viralizai_s"
 RE_URL = re.compile(r"^https?://[^\s]{6,500}$")
-# Planos (preço de lançamento). videos_mes = pedidos por mês (link, animação ou clone).
-PLANOS = {
-    "start": {"nome": "Start", "preco": 19.90, "depois": 29.90, "videos_mes": 15,
-              "itens": ["15 vídeos por mês (até 5 cortes cada)", "Legenda, gancho e relatório em todos", "Animação por texto"]},
-    "pro": {"nome": "Pro", "preco": 29.90, "depois": 39.90, "videos_mes": 60,
-            "itens": ["60 vídeos por mês (até 5 cortes cada)", "Animação por texto e clone de Reels", "Vídeos de até 1 hora", "Kit de post com legenda e hashtags"]},
-    "turbo": {"nome": "Turbo", "preco": 59.90, "depois": 79.90, "videos_mes": 200,
-              "itens": ["200 vídeos por mês", "Fila prioritária", "Tudo do Pro", "Para quem vende cortes para outros criadores"]},
-}
+RE_FONTE = re.compile(r"(youtube\.com|youtu\.be|twitch\.tv|kick\.com)", re.I)
+COR_PADRAO = "#2bff88"
+MOLDURAS = {"neon": "#2bff88", "fogo": "#ff6a00", "rosa": "#ff3d6e", "ouro": "#ffc53d", "gelo": "#3dd6ff", "roxo": "#9b5cff"}
 
 
 def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
     cfg = cfg or carregar()
     Path(cfg.dados).mkdir(parents=True, exist_ok=True)
-    db = Banco(os.path.join(cfg.dados, "cortai.db"))
+    db = Banco(os.path.join(cfg.dados, "viralizai.db"))
     admin.preparar(db)
-    app = FastAPI(title="Cortaí", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="Viralizaí", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.cfg, app.state.db = cfg, db
-    if cfg.demo_email:  # conta de demonstração: sempre com o plano Turbo ativo
+    if cfg.demo_email:  # conta de demonstração: Piloto Automático sempre ativo
         u = auth.usuario_por_email(db, cfg.demo_email.lower())
-        db.exec("UPDATE usuarios SET plano='turbo', ativo_ate=?, arroba=COALESCE(arroba,'cortaioficial'), redes=COALESCE(redes,'instagram,tiktok'), marca_cor=COALESCE(marca_cor,'#ff3d6e') WHERE id=?",
-                (agora() + 3650 * 86400, u["id"]))
+        db.exec("UPDATE usuarios SET plano='piloto', ativo_ate=?, onboarding=1, moedas=MAX(moedas,10), nome=COALESCE(nome,'Demo'), "
+                "estilo=COALESCE(estilo,?) WHERE id=?", (agora() + 3650 * 86400, json.dumps({"redes": ["tiktok"], "arroba": "viralizai", "cor": COR_PADRAO}), u["id"]))
     if iniciar_fila:
         app.state.parar = fila.iniciar(db, cfg)
 
+    # ------------------------------------------------ helpers
     def usuario(request: Request, obrigatorio: bool = True) -> dict | None:
         u = auth.usuario_da_sessao(db, cfg.segredo_sessao, request.cookies.get(COOKIE))
         if not u and obrigatorio:
             raise HTTPException(401, "entre na sua conta")
         return u
 
-    def perfil_de(u: dict) -> dict:
-        redes = [r for r in (u.get("redes") or "").split(",") if r]
-        return {"arroba": u.get("arroba") or "", "arroba_tiktok": u.get("arroba_tiktok") or "", "redes": redes, "cor": u.get("marca_cor") or "#ff3d6e"}
+    def estilo_de(u: dict) -> dict:
+        e = json.loads(u.get("estilo") or "{}") or {}
+        e.setdefault("redes", ["tiktok"])
+        e.setdefault("arroba", "")
+        e.setdefault("cor", COR_PADRAO)
+        e.setdefault("moldura", "neon")
+        e.setdefault("legenda", True)
+        e.setdefault("avisar_whatsapp", True)
+        return e
 
-    def resumo_conta(u: dict) -> dict:
-        assin = auth.assinante(u)
-        usados = fila.usados_no_mes(db, u["id"])
-        pl = PLANOS.get(u["plano"]) or PLANOS["pro"]
-        limite = pl["videos_mes"] if assin else cfg.trabalhos_teste
-        return {"email": u["email"], "assinante": assin, "perfil": perfil_de(u), "perfil_ok": bool((u.get("arroba") or u.get("arroba_tiktok")) and u.get("redes")), "plano": u["plano"] if assin else "teste", "ativo_ate": u["ativo_ate"],
-                "usados": usados, "limite": limite, "restam": max(0, limite - usados), "checkout": cfg.checkout_mensal, "planos": planos_publicos()}
+    def perfil_montagem(u: dict) -> dict:
+        e = estilo_de(u)
+        return {"redes": e["redes"], "arroba": e.get("arroba") or "", "cor": e.get("cor") or COR_PADRAO, "legenda": e.get("legenda", True)}
 
-    def planos_publicos() -> list[dict]:
-        return [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or "", "lancamento_ate": cfg.lancamento_ate} for k, v in PLANOS.items()]
+    def conta_de(u: dict) -> dict:
+        plano = planos.plano_ativo(u, agora())
+        lim = planos.limites(plano)
+        uso = fila.uso_mes(db, u["id"])
+        restam_cortes = (1 - int(u.get("teste_usado") or 0)) if plano == "teste" else max(0, lim["cortes_mes"] - uso["cortes"])
+        nao_lidos = db.um("SELECT COUNT(*) n FROM avisos WHERE usuario=? AND lido=0", (u["id"],))["n"]
+        return {"id": u["id"], "email": u["email"], "nome": u.get("nome") or "", "whatsapp": u.get("whatsapp") or "", "plano": plano,
+                "plano_nome": planos.PLANOS.get(plano, {}).get("nome", "Teste grátis"), "ativo_ate": u["ativo_ate"], "moedas": u.get("moedas") or 0,
+                "uso": uso, "limites": lim, "restam_cortes": restam_cortes,
+                "restam_animacoes": max(0, lim["animacoes_mes"] - uso["animacoes"]), "estilo": estilo_de(u),
+                "onboarding": bool(u.get("onboarding")), "teste_usado": bool(u.get("teste_usado")), "avisos": nao_lidos,
+                "temas": json.loads(u.get("temas") or "[]"), "google": bool(cfg.google_client_id)}
+
+    def paywall(motivo: str, recurso: str = "cortes") -> HTTPException:
+        return HTTPException(402, {"mensagem": motivo, "plano": planos.plano_minimo(recurso)})
+
+    def login(u: dict, extra: dict | None = None) -> JSONResponse:
+        token = auth.criar_sessao(db, cfg.segredo_sessao, u["id"])
+        resp = JSONResponse({"ok": True, **(extra or {})})
+        resp.set_cookie(COOKIE, token, max_age=auth.SESSAO_S, httponly=True, secure=not cfg.dev, samesite="lax", path="/")
+        return resp
+
+    def exigir_admin(request: Request):
+        chave = request.headers.get("x-admin-key") or ""
+        if not cfg.admin_key or not hmac.compare_digest(chave, cfg.admin_key):
+            raise HTTPException(401, "chave de admin")
 
     @app.get("/health")
     def health():
-        return {"ok": True}
+        return {"ok": True, "versao": os.environ.get("GIT_COMMIT", "dev")}
 
-    # ------------------------------------------------ login
+    # ------------------------------------------------ cadastro e login
+    @app.post("/api/cadastro")
+    async def cadastro(request: Request):
+        b = await request.json()
+        email = auth.normalizar_email(b.get("email"))
+        nome = re.sub(r"\s+", " ", str(b.get("nome") or "")).strip()[:60]
+        zap = re.sub(r"\D", "", str(b.get("whatsapp") or ""))[:13]
+        if not nome:
+            raise HTTPException(422, "Como você se chama?")
+        if not email:
+            raise HTTPException(422, "Esse e-mail não parece certo.")
+        if not b.get("aceite"):
+            raise HTTPException(422, "Pra criar a conta, aceite os termos.")
+        senha = senha_rotas._validar_nova(b.get("senha"))
+        if zap and len(zap) < 10:
+            raise HTTPException(422, "Confere o WhatsApp com DDD.")
+        if zap and len(zap) <= 11:
+            zap = "55" + zap
+        existe = db.um("SELECT * FROM usuarios WHERE email=?", (email,))
+        if existe and existe.get("senha_hash"):
+            raise HTTPException(409, "Esse e-mail já tem conta. Quer entrar?")
+        u = auth.usuario_por_email(db, email)
+        origem = "fael" if "fael" in (request.headers.get("referer") or "") else (b.get("origem") or "rangel")
+        db.exec("UPDATE usuarios SET nome=?, whatsapp=?, senha_hash=?, origem=COALESCE(origem,?) WHERE id=?",
+                (nome, zap or None, senha_rotas.hash_senha(senha), origem[:10], u["id"]))
+        return login(db.um("SELECT * FROM usuarios WHERE id=?", (u["id"],)))
+
+    senha_rotas.registrar(app, db, cfg, mailer, login, usuario)  # /api/entrar/senha, /api/senha/esqueci, /api/senha/redefinir
+
     @app.post("/api/entrar/codigo")
     async def pedir_codigo(request: Request):
         b = await request.json()
         email = auth.normalizar_email(b.get("email"))
         if not email:
-            raise HTTPException(422, "e-mail inválido")
+            raise HTTPException(422, "Esse e-mail não parece certo.")
         cod, motivo = auth.novo_codigo(db, cfg.segredo_sessao, email)
         if motivo == "espere":
-            raise HTTPException(429, "acabamos de mandar um código; espere alguns segundos")
-        enviado = mailer.codigo(cfg, email, cod)
-        out = {"ok": True, "enviado": enviado}
+            raise HTTPException(429, "Acabamos de mandar um código; espere alguns segundos.")
+        out = {"ok": True, "enviado": mailer.codigo(cfg, email, cod)}
         if cfg.dev:
             out["codigo_dev"] = cod
         return out
 
     @app.post("/api/entrar")
-    async def entrar(request: Request):
+    async def entrar_codigo(request: Request):
         b = await request.json()
         email = auth.normalizar_email(b.get("email"))
-        if not email:
-            raise HTTPException(422, "e-mail inválido")
-        r = auth.conferir_codigo(db, cfg.segredo_sessao, email, str(b.get("codigo") or ""))
+        r = auth.conferir_codigo(db, cfg.segredo_sessao, email or "", str(b.get("codigo") or ""))
         if r != "ok":
-            raise HTTPException(400, {"invalido": "código errado", "expirado": "código vencido; peça outro",
-                                      "tentativas": "muitas tentativas; peça outro código"}[r])
+            raise HTTPException(400, {"invalido": "Código errado.", "expirado": "Código vencido; peça outro.", "tentativas": "Muitas tentativas; peça outro código."}[r])
+        return login(auth.usuario_por_email(db, email))
+
+    @app.get("/api/google")
+    def google_inicio(request: Request):
+        if not cfg.google_client_id:
+            raise HTTPException(404, "Entrar com Google ainda não está ligado.")
+        estado = secrets.token_urlsafe(16)
+        from urllib.parse import urlencode
+        q = urlencode({"client_id": cfg.google_client_id, "redirect_uri": cfg.base_url + "/api/google/volta", "response_type": "code",
+                       "scope": "openid email profile", "state": estado, "prompt": "select_account"})
+        resp = RedirectResponse("https://accounts.google.com/o/oauth2/v2/auth?" + q)
+        resp.set_cookie("g_estado", estado, max_age=600, httponly=True, secure=not cfg.dev, samesite="lax")
+        return resp
+
+    @app.get("/api/google/volta")
+    def google_volta(request: Request, code: str = "", state: str = ""):
+        import httpx
+        if not code or not state or state != request.cookies.get("g_estado"):
+            return RedirectResponse("/entrar?erro=google")
+        r = httpx.post("https://oauth2.googleapis.com/token", data={"code": code, "client_id": cfg.google_client_id, "client_secret": cfg.google_client_secret,
+                                                                     "redirect_uri": cfg.base_url + "/api/google/volta", "grant_type": "authorization_code"}, timeout=20)
+        if r.status_code != 200:
+            return RedirectResponse("/entrar?erro=google")
+        info = httpx.get("https://openidconnect.googleapis.com/v1/userinfo", headers={"Authorization": "Bearer " + r.json()["access_token"]}, timeout=20).json()
+        email = auth.normalizar_email(info.get("email"))
+        if not email or not info.get("email_verified"):
+            return RedirectResponse("/entrar?erro=google")
         u = auth.usuario_por_email(db, email)
+        if not u.get("nome"):
+            db.exec("UPDATE usuarios SET nome=? WHERE id=?", ((info.get("given_name") or info.get("name") or "")[:60], u["id"]))
         token = auth.criar_sessao(db, cfg.segredo_sessao, u["id"])
-        resp = JSONResponse({"ok": True, "conta": resumo_conta(u)})
+        resp = RedirectResponse("/app")
         resp.set_cookie(COOKIE, token, max_age=auth.SESSAO_S, httponly=True, secure=not cfg.dev, samesite="lax", path="/")
         return resp
-
-
-    def _login(u: dict) -> JSONResponse:
-        token = auth.criar_sessao(db, cfg.segredo_sessao, u["id"])
-        resp = JSONResponse({"ok": True})
-        resp.set_cookie(COOKIE, token, max_age=auth.SESSAO_S, httponly=True, secure=not cfg.dev, samesite="lax", path="/")
-        return resp
-
-    senha_rotas.registrar(app, db, cfg, mailer, _login, usuario)  # senha (padrão), código (opção), esqueci a senha
 
     @app.post("/api/sair")
     def sair(request: Request):
@@ -121,299 +185,437 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         resp.delete_cookie(COOKIE, path="/")
         return resp
 
-    @app.get("/api/planos")
-    def planos():
-        return {"planos": planos_publicos()}
-
+    # ------------------------------------------------ conta, estilo, avisos
     @app.get("/api/conta")
     def conta(request: Request):
-        return resumo_conta(usuario(request))
+        return conta_de(usuario(request))
 
-    # ------------------------------------------------ trabalhos
-    def publico(t: dict, cfg=cfg) -> dict:
-        res = json.loads(t["resultado"]) if t.get("resultado") else None
-        entrada = json.loads(t["entrada"])
-        apagado = bool(entrada.get("apagado"))
-        if res:
-            for c in res.get("cortes", []):
-                c["url"] = None if apagado else f"/api/trabalhos/{t['id']}/arquivo/{c['arquivo']}"
-                c["urls"] = {} if apagado else {r: f"/api/trabalhos/{t['id']}/arquivo/{a}" for r, a in (c.get("arquivos") or {}).items()}
-                c["editavel"] = bool(c.get("limpo")) and not apagado
-                c.pop("palavras", None)
-                c["capa_url"] = None if apagado or not c.get("capa") else f"/api/trabalhos/{t['id']}/arquivo/{c['capa']}"
-            if res.get("compilado"):
-                res["compilado_url"] = None if apagado else f"/api/trabalhos/{t['id']}/arquivo/{res['compilado']}"
-        return {"id": t["id"], "tipo": t["tipo"], "estado": t["estado"], "etapa": t["etapa"], "progresso": t["progresso"],
-                "entrada": {"url": entrada.get("url"), "texto": entrada.get("texto")}, "erro": t["erro"], "criado": t["criado"], "fim": t["fim"],
-                "resultado": res, "arquivos_apagados": apagado, "posicao": fila.posicao(db, t["id"]) if t["estado"] == "fila" else 0}
-
-    @app.post("/api/trabalhos")
-    async def novo(request: Request):
+    @app.post("/api/conta")
+    async def conta_salvar(request: Request):
         u = usuario(request)
         b = await request.json()
-        tipo = b.get("tipo") or "cortes"
-        if tipo not in ("cortes", "animacao", "clonar"):
-            raise HTTPException(422, "esse tipo chega em breve")
+        if "nome" in b:
+            db.exec("UPDATE usuarios SET nome=? WHERE id=?", (str(b["nome"] or "")[:60], u["id"]))
+        if "whatsapp" in b:
+            z = re.sub(r"\D", "", str(b["whatsapp"] or ""))[:13]
+            db.exec("UPDATE usuarios SET whatsapp=? WHERE id=?", (("55" + z if z and len(z) <= 11 else z) or None, u["id"]))
+        if "temas" in b and isinstance(b["temas"], list):
+            db.exec("UPDATE usuarios SET temas=? WHERE id=?", (json.dumps([str(t)[:20] for t in b["temas"]][:10]), u["id"]))
+        if b.get("onboarding"):
+            db.exec("UPDATE usuarios SET onboarding=1 WHERE id=?", (u["id"],))
+        return conta_de(db.um("SELECT * FROM usuarios WHERE id=?", (u["id"],)))
+
+    @app.post("/api/estilo")
+    async def estilo_salvar(request: Request):
+        u = usuario(request)
+        b = await request.json()
+        e = estilo_de(u)
+        if "redes" in b:
+            redes = [r for r in (b.get("redes") or []) if r in ("tiktok", "instagram", "youtube")]
+            if not redes:
+                raise HTTPException(422, "Escolha pelo menos uma rede.")
+            e["redes"] = redes
+        if "arroba" in b:
+            e["arroba"] = re.sub(r"[^A-Za-z0-9_.]", "", str(b.get("arroba") or "").strip().lstrip("@"))[:30]
+        if "moldura" in b and b["moldura"] in MOLDURAS:
+            e["moldura"], e["cor"] = b["moldura"], MOLDURAS[b["moldura"]]
+        if "cor" in b and re.fullmatch(r"#[0-9a-fA-F]{6}", str(b.get("cor") or "")):
+            e["cor"] = b["cor"]
+        for k in ("legenda", "avisar_whatsapp"):
+            if k in b:
+                e[k] = bool(b[k])
+        db.exec("UPDATE usuarios SET estilo=? WHERE id=?", (json.dumps(e, ensure_ascii=False), u["id"]))
+        return conta_de(db.um("SELECT * FROM usuarios WHERE id=?", (u["id"],)))
+
+    @app.get("/api/avisos")
+    def avisos_lista(request: Request):
+        u = usuario(request)
+        itens = db.todos("SELECT id, texto, link, lido, quando FROM avisos WHERE usuario=? ORDER BY quando DESC LIMIT 30", (u["id"],))
+        db.exec("UPDATE avisos SET lido=1 WHERE usuario=?", (u["id"],))
+        return {"avisos": itens}
+
+    @app.get("/api/planos")
+    def planos_lista():
+        return {"planos": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or "", "lancamento_ate": cfg.lancamento_ate} for k, v in planos.PLANOS.items()],
+                "adicionais": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or ""} for k, v in planos.ADICIONAIS.items()],
+                "moedas": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or ""} for k, v in planos.PACOTES_MOEDAS.items()]}
+
+    # ------------------------------------------------ cortar
+    @app.post("/api/link")
+    async def ver_link(request: Request):
+        """Ao colar o link: capa + título + duração ("Live do Gaules · 4h02 ✓"), sem baixar nada."""
+        usuario(request)
+        b = await request.json()
         url = str(b.get("url") or "").strip()
-        texto = str(b.get("texto") or "").strip()[:1500]
-        if tipo in ("cortes", "clonar") and not RE_URL.match(url):
-            raise HTTPException(422, "cole o link completo do vídeo (começando com https://)")
-        if tipo in ("animacao", "clonar") and len(texto) < 8:
-            raise HTTPException(422, "conte em uma ou duas frases o vídeo que você quer")
-        c = resumo_conta(u)
-        if not c["perfil_ok"]:
-            raise HTTPException(428, "antes do primeiro corte, diga seu @ e para quais redes você vai postar")
-        if c["restam"] <= 0:
-            raise HTTPException(402, "escolha um plano para começar a criar" if not c["assinante"] else "você usou todos os vídeos do seu plano neste mês; suba de plano para continuar")
-        if tipo == "clonar" and c["plano"] == "start":
-            raise HTTPException(402, "clonar Reels faz parte dos planos Pro e Turbo")
-        abertos = db.um("SELECT COUNT(*) n FROM trabalhos WHERE usuario=? AND estado IN ('fila','rodando')", (u["id"],))["n"]
-        if abertos >= 2:
-            raise HTTPException(429, "espere um dos seus pedidos terminar para mandar outro")
-        if tipo == "clonar":
-            entrada = {"url": url, "texto": texto, "voz": "masculina" if b.get("voz") == "masculina" else "feminina"}
-        elif tipo == "animacao":
-            from app.ganchos import ESTILOS
-            entrada = {"texto": texto, "segundos": max(15, min(60, int(b.get("segundos") or 30))), "voz": "masculina" if b.get("voz") == "masculina" else "feminina",
-                       "estilo": b.get("estilo") if b.get("estilo") in ESTILOS else None}
-        else:
-            entrada = {"url": url, "quantos": max(1, min(cfg.max_cortes, int(b.get("quantos") or 3)))}
-        pf = perfil_de(u)
-        entrada["perfil"] = {"arroba": pf["arroba"] or pf["arroba_tiktok"], "redes": pf["redes"], "cor": pf["cor"]}
-        tl = b.get("tela") if isinstance(b.get("tela"), dict) else None
-        if tl and tipo == "cortes":
-            from app import tela
-            arq = reacao_de(u)
-            if not arq:
-                raise HTTPException(422, "para a tela dividida, suba antes o seu vídeo ou foto de reação em Minha marca")
-            entrada["perfil"]["tela"] = {"arquivo": str(arq), "layout": tl.get("layout") if tl.get("layout") in tela.LAYOUTS else "cima",
-                                         "audio_meu": bool(tl.get("audio_meu"))}
-        tid = fila.criar(db, u["id"], tipo, entrada)
-        return publico(db.um("SELECT * FROM trabalhos WHERE id=?", (tid,)))
+        if not RE_URL.match(url) or not RE_FONTE.search(url):
+            raise HTTPException(422, "Cola um link do YouTube, da Twitch ou da Kick.")
+        from app.motor import fonte
+        chave = fonte.chave_rapida(url)
+        f = db.um("SELECT * FROM fontes WHERE chave=?", (chave,)) if chave else None
+        if f and f.get("titulo"):
+            return {"chave": chave, "titulo": f["titulo"], "canal": f["canal"], "duracao": f["duracao"], "capa": f["capa"], "ao_vivo": False, "pronta": f["estado"] == "pronta"}
+        try:
+            i = fonte.info(url, cfg)
+        except fonte.ErroFonte as e:
+            raise HTTPException(422, str(e))
+        ctx = fonte.contexto(i)
+        chave = chave or fonte.chave_de_info(i)
+        db.exec("""INSERT INTO fontes(chave,url,titulo,canal,duracao,capa,plataforma,criado) VALUES(?,?,?,?,?,?,?,?)
+                   ON CONFLICT(chave) DO UPDATE SET titulo=excluded.titulo, canal=excluded.canal, duracao=excluded.duracao, capa=excluded.capa""",
+                (chave, ctx["url"] or url, ctx["titulo"], ctx["canal"], ctx["duracao"], ctx["capa"], ctx["plataforma"], agora()))
+        return {"chave": chave, "titulo": ctx["titulo"], "canal": ctx["canal"], "duracao": ctx["duracao"], "capa": ctx["capa"], "ao_vivo": ctx["ao_vivo"], "pronta": False}
 
-    def reacao_de(u: dict):
-        d = Path(cfg.dados) / "reacao"
-        for f in d.glob(f"{u['id']}.*") if d.exists() else []:
-            return f
-        return None
+    def checar_cota(u: dict, quantos: int) -> tuple[int, bool]:
+        c = conta_de(u)
+        if c["plano"] == "teste":
+            if c["teste_usado"]:
+                raise paywall("Sua prévia grátis já foi usada. Escolha um plano pra cortar à vontade 🔥")
+            return 1, True
+        if c["restam_cortes"] <= 0:
+            raise paywall(f"Você usou seus {c['limites']['cortes_mes']} cortes do mês 🔥 Sobe de plano pra continuar.")
+        if fila.abertos(db, u["id"]) >= 3:
+            raise HTTPException(429, "Espera um dos seus pedidos terminar pra mandar outro.")
+        return max(1, min(quantos, c["restam_cortes"], cfg.max_cortes)), False
 
-    @app.get("/api/reacao")
-    def reacao_info(request: Request):
+    def novo_pedido_cortes(u: dict, chave: str, entrada: dict) -> dict:
+        quantos, teste = checar_cota(u, int(entrada.get("quantos") or 3))
+        entrada.update({"quantos": quantos, "teste": teste, "perfil": perfil_montagem(u)})
+        if entrada.get("objetivo") not in ("tiktok", "viral", "reels"):
+            entrada["objetivo"] = "tiktok"
+        tid = fila.criar(db, u["id"], "cortes", entrada, fila.prioridade_de(u), chave)
+        if teste:
+            db.exec("UPDATE usuarios SET teste_usado=1 WHERE id=?", (u["id"],))
+        return pedido_publico(db.um("SELECT * FROM trabalhos WHERE id=?", (tid,)), u)
+
+    @app.post("/api/cortes")
+    async def cortar(request: Request):
         u = usuario(request)
-        f = reacao_de(u)
-        if not f:
-            return {"tem": False}
-        from app import tela
-        return {"tem": True, "tipo": "foto" if tela.eh_foto(f) else "video", "url": "/api/reacao/arquivo", "segundos": round(tela.duracao(f), 1) if not tela.eh_foto(f) else None}
+        b = await request.json()
+        url = str(b.get("url") or "").strip()
+        if not RE_URL.match(url) or not RE_FONTE.search(url):
+            raise HTTPException(422, "Cola um link do YouTube, da Twitch ou da Kick (ou sobe o vídeo).")
+        from app.motor import fonte
+        chave = fonte.chave_rapida(url)
+        if not chave:
+            try:
+                chave = fonte.chave_de_info(fonte.info(url, cfg))
+            except fonte.ErroFonte as e:
+                raise HTTPException(422, str(e))
+        db.exec("INSERT OR IGNORE INTO fontes(chave,url,criado) VALUES(?,?,?)", (chave, url, agora()))
+        return novo_pedido_cortes(u, chave, {"url": url, "objetivo": b.get("objetivo"), "quantos": b.get("quantos"), "layout": b.get("layout") or "auto"})
 
-    @app.get("/api/reacao/arquivo")
-    def reacao_arquivo(request: Request):
-        f = reacao_de(usuario(request))
-        if not f:
-            raise HTTPException(404, "sem reação")
-        return FileResponse(f)
-
-    @app.delete("/api/reacao")
-    def reacao_apagar(request: Request):
-        f = reacao_de(usuario(request))
-        if f:
-            f.unlink(missing_ok=True)
-        return {"ok": True}
-
-    @app.post("/api/reacao")
-    async def reacao_subir(request: Request):
-        """Vídeo (até 2 min, 200 MB) ou foto do cliente para a tela dividida. Corpo cru, nome no cabeçalho x-arquivo."""
-        from app import tela
+    @app.post("/api/cortes/upload")
+    async def cortar_upload(request: Request):
+        """Vídeo do celular (corpo cru, até 2 GB). Nunca vai para a vitrine."""
         u = usuario(request)
-        nome = request.headers.get("x-arquivo") or "reacao.mp4"
+        checar_cota(u, 1)
+        nome = request.headers.get("x-arquivo") or "video.mp4"
         ext = ("." + nome.rsplit(".", 1)[-1].lower()) if "." in nome else ".mp4"
-        if ext not in tela.EXT_VIDEO + tela.EXT_FOTO:
-            raise HTTPException(422, "mande um vídeo (MP4, MOV, WEBM) ou uma foto (JPG, PNG)")
-        d = Path(cfg.dados) / "reacao"
+        if ext not in (".mp4", ".mov", ".webm", ".mkv", ".m4v"):
+            raise HTTPException(422, "Manda um vídeo MP4, MOV ou WEBM.")
+        d = Path(cfg.dados) / "uploads"
         d.mkdir(parents=True, exist_ok=True)
-        tmp = d / f"{u['id']}.novo{ext}"
+        h = hashlib.sha256()
+        tmp = d / f"novo_{secrets.token_hex(6)}{ext}"
         total = 0
         with open(tmp, "wb") as f:
             async for parte in request.stream():
                 total += len(parte)
-                if total > 200 * 1024 * 1024:
+                if total > 2 * 1024**3:
                     f.close(); tmp.unlink(missing_ok=True)
-                    raise HTTPException(413, "o arquivo passa de 200 MB")
-                f.write(parte)
-        if total < 1000:
-            tmp.unlink(missing_ok=True)
-            raise HTTPException(422, "o arquivo chegou vazio; tente de novo")
-        if ext in tela.EXT_VIDEO:
-            dur = tela.duracao(tmp)
-            if dur <= 0:
-                tmp.unlink(missing_ok=True)
-                raise HTTPException(422, "não consegui ler esse vídeo; exporte em MP4")
-            if dur > tela.MAX_REACAO_S:
-                tmp.unlink(missing_ok=True)
-                raise HTTPException(422, "o vídeo de reação pode ter até 2 minutos")
-        for velho in d.glob(f"{u['id']}.*"):
-            if velho != tmp:
-                velho.unlink(missing_ok=True)
-        final = d / f"{u['id']}{ext}"
-        tmp.replace(final)
-        return {"ok": True, "tipo": "foto" if tela.eh_foto(final) else "video"}
-
-    @app.post("/api/falado")
-    async def novo_falado(request: Request):
-        """Sobe o vídeo falado (corpo cru, até 400 MB) e cria o pedido. Sem multipart para não depender de biblioteca extra."""
-        u = usuario(request)
-        c = resumo_conta(u)
-        if not c["perfil_ok"]:
-            raise HTTPException(428, "antes do primeiro corte, diga seu @ e para quais redes você vai postar")
-        if c["restam"] <= 0:
-            raise HTTPException(402, "escolha um plano para começar a criar" if not c["assinante"] else "você usou todos os vídeos do seu plano neste mês; suba de plano para continuar")
-        if db.um("SELECT COUNT(*) n FROM trabalhos WHERE usuario=? AND estado IN ('fila','rodando')", (u["id"],))["n"] >= 2:
-            raise HTTPException(429, "espere um dos seus pedidos terminar para mandar outro")
-        nome = request.headers.get("x-arquivo") or "video.mp4"
-        ext = ("." + nome.rsplit(".", 1)[-1].lower()) if "." in nome else ".mp4"
-        if ext not in (".mp4", ".mov", ".webm", ".mkv", ".m4v"):
-            raise HTTPException(422, "mande um vídeo MP4, MOV ou WEBM")
-        import uuid as _uuid
-        dest_dir = Path(cfg.dados) / "uploads"
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        dest = dest_dir / f"{_uuid.uuid4().hex}{ext}"
-        total = 0
-        with open(dest, "wb") as f:
-            async for parte in request.stream():
-                total += len(parte)
-                if total > 400 * 1024 * 1024:
-                    f.close(); dest.unlink(missing_ok=True)
-                    raise HTTPException(413, "o vídeo passa de 400 MB; exporte em 1080p ou menos")
+                    raise HTTPException(413, "O vídeo passa de 2 GB.")
+                h.update(parte)
                 f.write(parte)
         if total < 10_000:
-            dest.unlink(missing_ok=True)
-            raise HTTPException(422, "o arquivo chegou vazio; tente de novo")
-        pf = perfil_de(u)
-        entrada = {"upload": str(dest), "nome": nome[:120], "perfil": {"arroba": pf["arroba"] or pf["arroba_tiktok"], "redes": pf["redes"], "cor": pf["cor"]}}
-        tid = fila.criar(db, u["id"], "falado", entrada)
-        return publico(db.um("SELECT * FROM trabalhos WHERE id=?", (tid,)))
+            tmp.unlink(missing_ok=True)
+            raise HTTPException(422, "O arquivo chegou vazio; tenta de novo.")
+        chave = f"up:{u['id']}-{h.hexdigest()[:16]}"
+        final = d / f"{chave.replace(':', '_')}{ext}"
+        tmp.replace(final)
+        db.exec("INSERT OR IGNORE INTO fontes(chave,url,titulo,publica,criado) VALUES(?,?,?,0,?)", (chave, "upload", nome[:120], agora()))
+        q = request.query_params
+        return novo_pedido_cortes(u, chave, {"upload": str(final), "nome": nome[:120], "objetivo": q.get("objetivo"), "quantos": int(q.get("quantos") or 3)})
 
-    @app.get("/api/estilos")
-    def estilos():
-        from app.ganchos import ESTILOS
-        return {"estilos": [{"codigo": k, "nome": v[0]} for k, v in ESTILOS.items()]}
-
-    @app.get("/api/biblioteca")
-    def biblioteca_lista(request: Request):
-        usuario(request)
-        from app import biblioteca
-        itens = biblioteca.listar(cfg)
-        for i in itens:
-            i["url"] = f"/api/biblioteca/{i['codigo']}.mp4"
-            i["capa_url"] = f"/api/biblioteca/{i['codigo']}.jpg"
-        return {"itens": itens, "total": len(biblioteca.TEMAS)}
-
-    @app.get("/api/biblioteca/{nome}")
-    def biblioteca_arquivo(nome: str, request: Request, baixar: int = 0):
-        usuario(request)
-        from app import biblioteca
-        if not re.fullmatch(r"[a-z]+\.(mp4|jpg)", nome):
-            raise HTTPException(404, "não encontrado")
-        p = biblioteca.pasta(cfg) / nome
-        if not p.exists():
-            raise HTTPException(404, "não encontrado")
-        return FileResponse(p, media_type="video/mp4" if nome.endswith(".mp4") else "image/jpeg", filename=f"cortai-{nome}" if baixar else None)
-
-    @app.post("/api/admin/biblioteca/gerar")
-    def biblioteca_gerar(request: Request, refazer: int = 0):
-        exigir_admin(request)
-        from app import biblioteca
-        biblioteca.gerar_em_segundo_plano(cfg, bool(refazer))
-        return {"ok": True, "ja_prontos": len(biblioteca.listar(cfg))}
-
-    @app.get("/api/perfil")
-    def perfil_get(request: Request):
-        return perfil_de(usuario(request))
-
-    @app.post("/api/perfil")
-    async def perfil_set(request: Request):
+    @app.post("/api/pedidos/{tid}/mais")
+    async def mais_cortes(tid: str, request: Request):
+        """Quero mais cortes dessa live: reaproveita a análise, não repete trecho."""
         u = usuario(request)
-        b = await request.json()
-        limpa = lambda x: re.sub(r"[^A-Za-z0-9_.]", "", str(x or "").strip().lstrip("@"))[:30]
-        arroba, arroba_tt = limpa(b.get("arroba")), limpa(b.get("arroba_tiktok"))
-        redes = [r for r in (b.get("redes") or []) if r in ("tiktok", "instagram", "youtube")]
-        cor = str(b.get("cor") or "#ff3d6e")
-        if not re.fullmatch(r"#[0-9a-fA-F]{6}", cor):
-            cor = "#ff3d6e"
-        if not (arroba or arroba_tt):
-            raise HTTPException(422, "informe seu @ (Instagram ou TikTok)")
-        if not redes:
-            raise HTTPException(422, "escolha pelo menos uma rede")
-        db.exec("UPDATE usuarios SET arroba=?, arroba_tiktok=?, redes=?, marca_cor=? WHERE id=?", (arroba, arroba_tt, ",".join(redes), cor, u["id"]))
-        return perfil_de(db.um("SELECT * FROM usuarios WHERE id=?", (u["id"],)))
+        t = db.um("SELECT * FROM trabalhos WHERE id=? AND usuario=? AND tipo='cortes'", (tid, u["id"]))
+        if not t:
+            raise HTTPException(404, "Pedido não encontrado.")
+        e = json.loads(t["entrada"])
+        ja = []
+        for x in db.todos("SELECT resultado FROM trabalhos WHERE usuario=? AND fonte=? AND resultado IS NOT NULL", (u["id"], t["fonte"])):
+            ja += [c.get("origem") for c in json.loads(x["resultado"]).get("cortes", []) if c.get("origem")]
+        b = await request.json() if request.headers.get("content-length") not in (None, "0") else {}
+        return novo_pedido_cortes(u, t["fonte"], {k: e.get(k) for k in ("url", "upload", "objetivo", "layout")} | {"quantos": int(b.get("quantos") or 3), "ja_recebidos": ja})
 
-    @app.post("/api/trabalhos/{tid}/cortes/{n}")
-    async def editar_corte(tid: str, n: int, request: Request):
-        """Edita um corte pronto a partir do corte limpo: gancho, aparar início/fim, legenda ligada/desligada, cor e @ atuais do perfil."""
+    # ------------------------------------------------ pedidos e arquivos
+    def pedido_publico(t: dict, u: dict | None = None) -> dict:
+        res = json.loads(t["resultado"]) if t.get("resultado") else None
+        entrada = json.loads(t["entrada"])
+        apagado = bool(entrada.get("apagado"))
+        base = f"/api/pedidos/{t['id']}/arquivo/"
+        if res:
+            for c in res.get("cortes", []):
+                if c.get("estado") == "pronto" and not apagado:
+                    c["url"] = base + c["arquivo"]
+                    c["urls"] = {r: base + a for r, a in (c.get("arquivos") or {}).items()}
+                    c["capa_url"] = base + c["capa"] if c.get("capa") else None
+                c.pop("palavras", None)
+                c.pop("variacao", None)
+            if res.get("video", {}).get("capa") and not str(res["video"]["capa"]).startswith("http"):
+                res["video"]["capa"] = None
+            if res.get("arquivo") and not apagado:
+                res["url"] = base + res["arquivo"]
+        return {"id": t["id"], "tipo": t["tipo"], "estado": t["estado"], "etapa": t["etapa"], "progresso": t["progresso"],
+                "entrada": {k: entrada.get(k) for k in ("url", "texto", "nome", "objetivo", "quantos", "teste")},
+                "erro": t["erro"], "criado": t["criado"], "fim": t["fim"], "resultado": res, "apagado": apagado,
+                "estimativa": estimativa(t)}
+
+    def estimativa(t: dict) -> str:
+        if t["estado"] in ("pronto", "erro"):
+            return ""
+        passou = agora() - t["criado"]
+        if t["estado"] == "montando":
+            return "quase lá…"
+        return "uns 2 minutinhos" if passou < 120 else "mais um pouquinho"
+
+    @app.get("/api/pedidos")
+    def pedidos(request: Request, tipo: str = ""):
         u = usuario(request)
-        t = db.um("SELECT * FROM trabalhos WHERE id=? AND usuario=?", (tid, u["id"]))
-        if not t or t["estado"] != "pronto":
-            raise HTTPException(404, "corte não encontrado")
-        res = json.loads(t["resultado"])
-        if not (1 <= n <= len(res.get("cortes", []))):
-            raise HTTPException(404, "corte não encontrado")
-        c = res["cortes"][n - 1]
-        pasta = fila.pasta_trabalho(cfg, tid)
-        if not c.get("limpo") or not (pasta / c["limpo"]).exists():
-            raise HTTPException(409, "este corte não pode ser editado (animações, clones e cortes antigos saem prontos)")
-        b = await request.json()
-        from app import estilo
-        import subprocess
-        limpo = pasta / c["limpo"]
-        dur = estilo.duracao(limpo)
-        try:
-            a = max(0.0, float(b.get("aparar_inicio") or 0))
-            z = max(0.0, float(b.get("aparar_fim") or 0))
-        except (TypeError, ValueError):
-            raise HTTPException(422, "valores de corte inválidos")
-        if dur - a - z < 5:
-            raise HTTPException(422, "o corte ficaria curto demais (mínimo 5 segundos)")
-        fonte, palavras = limpo, c.get("palavras") or []
-        if a or z:  # apara a partir do limpo original e realinha as palavras
-            fonte = pasta / f"corte{n}_editado_limpo.mp4"
-            r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{a:.2f}", "-to", f"{dur - z:.2f}", "-i", str(limpo), "-c:v", "libx264", "-preset", "veryfast",
-                                "-crf", "22", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(fonte)], capture_output=True, text=True)
-            if r.returncode != 0:
-                raise HTTPException(500, "não consegui aparar o corte agora")
-            palavras = [{**w, "start": round(w["start"] - a, 2), "end": round(w["end"] - a, 2)} for w in palavras if w["end"] > a and w["start"] < dur - z]
-        gancho = str(b.get("gancho") if b.get("gancho") is not None else c.get("gancho", ""))[:60]
-        legenda = bool(b.get("legenda", True))
-        arquivos = estilo.versoes(fonte, palavras, gancho, pasta, f"corte{n}_ed", {**perfil_de(u), "arroba": perfil_de(u)["arroba"] or perfil_de(u)["arroba_tiktok"]}, legenda)
-        c.update({"arquivos": arquivos, "arquivo": next(iter(arquivos.values())), "gancho": gancho.upper(), "legenda_on": legenda,
-                  "editado": {"aparar_inicio": a, "aparar_fim": z}, "duracao": round(dur - a - z, 1)})
-        db.exec("UPDATE trabalhos SET resultado=? WHERE id=?", (json.dumps(res, ensure_ascii=False), tid))
-        return publico(db.um("SELECT * FROM trabalhos WHERE id=?", (tid,)))
+        sql, args = "SELECT * FROM trabalhos WHERE usuario=?", [u["id"]]
+        if tipo:
+            sql += " AND tipo=?"
+            args.append(tipo)
+        return {"pedidos": [pedido_publico(t, u) for t in db.todos(sql + " ORDER BY criado DESC LIMIT 60", tuple(args))]}
 
-    @app.get("/api/trabalhos")
-    def listar(request: Request):
-        u = usuario(request)
-        return {"trabalhos": [publico(t) for t in db.todos("SELECT * FROM trabalhos WHERE usuario=? ORDER BY criado DESC LIMIT 50", (u["id"],))]}
-
-    @app.get("/api/trabalhos/{tid}")
-    def ver(tid: str, request: Request):
+    @app.get("/api/pedidos/{tid}")
+    def pedido(tid: str, request: Request):
         u = usuario(request)
         t = db.um("SELECT * FROM trabalhos WHERE id=? AND usuario=?", (tid, u["id"]))
         if not t:
-            raise HTTPException(404, "não encontrado")
-        return publico(t)
+            raise HTTPException(404, "Não encontrado.")
+        return pedido_publico(t, u)
 
-    @app.get("/api/trabalhos/{tid}/arquivo/{nome}")
+    @app.delete("/api/pedidos/{tid}")
+    def pedido_apagar(tid: str, request: Request):
+        import shutil
+        u = usuario(request)
+        t = db.um("SELECT * FROM trabalhos WHERE id=? AND usuario=?", (tid, u["id"]))
+        if not t:
+            raise HTTPException(404, "Não encontrado.")
+        shutil.rmtree(fila.pasta_trabalho(cfg, tid), ignore_errors=True)
+        db.exec("DELETE FROM trabalhos WHERE id=?", (tid,))
+        return {"ok": True}
+
+    @app.get("/api/pedidos/{tid}/arquivo/{nome}")
     def arquivo(tid: str, nome: str, request: Request, baixar: int = 0):
         u = usuario(request)
-        if not re.fullmatch(r"(corte\d+(_ed)?(_(limpo|tiktok|instagram|youtube))?\.(mp4|jpg)|melhores_momentos\.mp4)", nome) or not db.um("SELECT 1 FROM trabalhos WHERE id=? AND usuario=?", (tid, u["id"])):
-            raise HTTPException(404, "não encontrado")
+        if not re.fullmatch(r"[\w-]{1,60}\.(mp4|jpg|png|mp3)", nome):
+            raise HTTPException(404, "Não encontrado.")
+        t = db.um("SELECT * FROM trabalhos WHERE id=? AND usuario=?", (tid, u["id"]))
+        if not t:
+            raise HTTPException(404, "Não encontrado.")
+        if baixar and json.loads(t["entrada"]).get("teste") and planos.plano_ativo(u, agora()) == "teste":
+            raise paywall("Gostou? Pra baixar e postar, escolha um plano 🔥", "baixar")
         p = fila.pasta_trabalho(cfg, tid) / nome
         if not p.exists():
-            raise HTTPException(410, "esse arquivo já foi apagado (guardamos por 7 dias)")
-        mt = "video/mp4" if nome.endswith(".mp4") else "image/jpeg"
-        return FileResponse(p, media_type=mt, filename=f"cortai-{tid[:6]}-{nome}" if baixar else None)
+            raise HTTPException(410, f"Esse arquivo já foi apagado (guardamos por {cfg.guardar_dias} dias).")
+        mt = {"mp4": "video/mp4", "jpg": "image/jpeg", "png": "image/png", "mp3": "audio/mpeg"}[nome.rsplit(".", 1)[1]]
+        return FileResponse(p, media_type=mt, filename=f"viralizai-{tid[:6]}-{nome}" if baixar else None)
 
-    # ------------------------------------------------ Cakto (assinatura)
+    @app.post("/api/pedidos/{tid}/cortes/{k}/editar")
+    async def editar_corte(tid: str, k: int, request: Request):
+        """Editor simples: gancho, aparar início/fim, legenda ligada, @ e cor do estilo atual. Refaz a partir do trecho em cache."""
+        from app.motor import analise, montar
+        u = usuario(request)
+        t = db.um("SELECT * FROM trabalhos WHERE id=? AND usuario=?", (tid, u["id"]))
+        if not t or t["tipo"] not in ("cortes", "vitrine"):
+            raise HTTPException(404, "Corte não encontrado.")
+        res = json.loads(t["resultado"] or "{}")
+        c = next((x for x in res.get("cortes", []) if x["k"] == k and x.get("estado") == "pronto"), None)
+        if not c:
+            raise HTTPException(404, "Corte não encontrado.")
+        b = await request.json()
+        base = db.um("SELECT * FROM cortes_base WHERE id=?", (c["corte_base"],))
+        pf = analise.pasta_fonte(cfg.dados, base["fonte"])
+        s = analise._ler(pf / "sinais.json") or {}
+        try:
+            a = max(0.0, min(30.0, float(b.get("aparar_inicio") or 0)))
+            z = max(0.0, min(30.0, float(b.get("aparar_fim") or 0)))
+        except (TypeError, ValueError):
+            raise HTTPException(422, "Valores de corte inválidos.")
+        ini, fim = c["inicio"] + a, c["fim"] - z
+        if fim - ini < 5:
+            raise HTTPException(422, "O corte ficaria curto demais (mínimo 5 segundos).")
+        corte = {"inicio": base["inicio"], "fim": base["fim"], "gancho": str(b.get("gancho") if b.get("gancho") is not None else c.get("gancho") or "")[:60],
+                 "tipo": base["tipo"]}
+        var = dict(c.get("variacao") or montar.variacao("", True))
+        var["d_ini"], var["d_fim"] = ini - base["inicio"], fim - base["fim"]
+        perfil = perfil_montagem(u)
+        if "legenda" in b:
+            perfil["legenda"] = bool(b["legenda"])
+        n = int(time.time()) % 100000
+        feito = montar.personalizado(s, pf, corte, perfil, fila.pasta_trabalho(cfg, tid), f"corte{k}_e{n}", cfg, var)
+
+        def por(r):
+            for x in r.get("cortes", []):
+                if x["k"] == k:
+                    x.update({**feito, "gancho": corte["gancho"].upper(), "editado": True})
+        fila._mexer_resultado(db, tid, por)
+        return pedido_publico(db.um("SELECT * FROM trabalhos WHERE id=?", (tid,)), u)
+
+    # ------------------------------------------------ vitrine (Prontos pra postar)
+    def base_publica(b: dict) -> dict:
+        return {"id": b["id"], "nota": b["nota"], "gancho": b["gancho"], "titulo": b["titulo"], "porque": b["porque"], "tema": b["tema"],
+                "duracao": round(b["fim"] - b["inicio"], 1), "canal": b.get("canal") or "", "usos": b["usos"],
+                "capa_url": f"/api/vitrine/{b['id']}/capa.jpg" if b.get("capa") else None,
+                "previa_url": f"/api/vitrine/{b['id']}/previa.mp4" if b.get("previa") else None, "criado": b["criado"]}
+
+    def vitrine_sql(tema: str = "", q: str = "", limite: int = 30, ordem: str = "nota") -> list[dict]:
+        hoje = agora() - 86400
+        sql = f"""SELECT b.*, f.canal FROM cortes_base b JOIN fontes f ON f.chave=b.fonte
+                  WHERE b.publico=1 AND b.oculto=0 AND b.previa IS NOT NULL AND f.publica=1
+                  AND (SELECT COUNT(*) FROM usos s WHERE s.corte_base=b.id AND s.quando>?) < {planos.LIMITE_USOS_DIA}"""
+        args: list = [hoje]
+        if tema and tema not in ("alta", "novos"):
+            sql += " AND b.tema=?"
+            args.append(tema)
+        if q:
+            sql += " AND (b.titulo LIKE ? OR b.gancho LIKE ? OR f.titulo LIKE ?)"
+            args += [f"%{q}%"] * 3
+        sql += " ORDER BY " + ("b.criado DESC" if ordem == "novos" else "b.nota DESC, b.criado DESC") + " LIMIT ?"
+        args.append(limite)
+        return [base_publica(b) for b in db.todos(sql, tuple(args))]
+
+    @app.get("/api/vitrine")
+    def vitrine(request: Request, tema: str = "", q: str = ""):
+        usuario(request)
+        if tema or q:
+            return {"itens": vitrine_sql(tema, q[:40], 60, "novos" if tema == "novos" else "nota")}
+        temas = [r["tema"] for r in db.todos("SELECT tema, COUNT(*) n FROM cortes_base WHERE publico=1 AND oculto=0 AND previa IS NOT NULL GROUP BY tema ORDER BY n DESC")]
+        return {"secoes": [{"tema": "alta", "titulo": "🔥 Em alta agora", "itens": vitrine_sql("", "", 12)}] +
+                          [{"tema": t, "titulo": NOMES_TEMA.get(t, t.title()), "itens": vitrine_sql(t, "", 12)} for t in temas if t]}
+
+    @app.get("/api/publico/vitrine")
+    def vitrine_publica():
+        return {"itens": vitrine_sql("", "", 6)}
+
+    @app.get("/api/vitrine/{bid}/{nome}")
+    def vitrine_arquivo(bid: int, nome: str):
+        b = db.um("SELECT b.* FROM cortes_base b JOIN fontes f ON f.chave=b.fonte WHERE b.id=? AND b.publico=1 AND f.publica=1 AND b.oculto=0", (bid,))
+        if not b or nome not in ("capa.jpg", "previa.mp4"):
+            raise HTTPException(404, "Não encontrado.")
+        p = Path(b["capa"] if nome == "capa.jpg" else b["previa"] or "")
+        if not p.is_file():
+            raise HTTPException(404, "Não encontrado.")
+        return FileResponse(p, media_type="image/jpeg" if nome.endswith("jpg") else "video/mp4", headers={"Cache-Control": "public, max-age=3600"})
+
+    @app.post("/api/vitrine/{bid}/usar")
+    def vitrine_usar(bid: int, request: Request):
+        u = usuario(request)
+        if planos.plano_ativo(u, agora()) == "teste":
+            raise paywall("Pra usar os cortes prontos com a sua cara, escolha um plano 🔥")
+        checar_cota(u, 1)
+        b = db.um("SELECT * FROM cortes_base WHERE id=? AND publico=1 AND oculto=0", (bid,))
+        if not b:
+            raise HTTPException(404, "Esse corte não está mais disponível.")
+        if db.um("SELECT COUNT(*) n FROM usos WHERE corte_base=? AND quando>?", (bid, agora() - 86400))["n"] >= planos.LIMITE_USOS_DIA:
+            raise HTTPException(409, "Esse corte bombou hoje e esgotou 🔥 Escolhe outro.")
+        tid = fila.criar(db, u["id"], "vitrine", {"corte_base": bid, "perfil": perfil_montagem(u)}, fila.prioridade_de(u), b["fonte"])
+        return pedido_publico(db.um("SELECT * FROM trabalhos WHERE id=?", (tid,)), u)
+
+    # ------------------------------------------------ animação, vídeo com IA, editor
+    @app.post("/api/animacao/roteiro")
+    async def animacao_roteiro(request: Request):
+        """Mostra o roteiro em cenas ANTES de gerar (sem custo, evita refazer)."""
+        from app import animacao_v2
+        u = usuario(request)
+        b = await request.json()
+        ideia = str(b.get("ideia") or "").strip()[:800]
+        if len(ideia) < 6:
+            raise HTTPException(422, "Conta em uma frase sobre o que é o vídeo.")
+        return animacao_v2.roteiro(ideia, b.get("formato") or "auto", int(b.get("segundos") or 61), cfg)
+
+    @app.post("/api/animacao")
+    async def animacao(request: Request):
+        from app import animacao_v2
+        u = usuario(request)
+        c = conta_de(u)
+        if c["limites"]["animacoes_mes"] == 0:
+            raise paywall("Criar animação é do plano Corte + Animação ✨", "animacao")
+        if c["restam_animacoes"] <= 0:
+            raise paywall("Você usou as animações do mês. Sobe de plano pra continuar.", "animacao")
+        b = await request.json()
+        roteiro = b.get("roteiro")
+        if not isinstance(roteiro, dict) or not roteiro.get("cenas"):
+            raise HTTPException(422, "Gera o roteiro antes.")
+        entrada = {"roteiro": animacao_v2.validar(roteiro), "voz": b.get("voz") or "masculina", "perfil": perfil_montagem(u)}
+        tid = fila.criar(db, u["id"], "animacao", entrada, fila.prioridade_de(u))
+        return pedido_publico(db.um("SELECT * FROM trabalhos WHERE id=?", (tid,)), u)
+
+    @app.get("/api/animacao/formatos")
+    def animacao_formatos():
+        from app import animacao_v2
+        return {"formatos": animacao_v2.FORMATOS_PUBLICOS, "vozes": animacao_v2.VOZES_PUBLICAS}
+
+    @app.get("/api/video_ia/moldes")
+    def video_ia_moldes():
+        from app import video_ia
+        return {"moldes": video_ia.MOLDES}
+
+    @app.post("/api/video_ia/previa")
+    async def video_ia_previa(request: Request):
+        from app import video_ia
+        u = usuario(request)
+        b = await request.json()
+        return video_ia.previa(db, u, str(b.get("pedido") or "")[:500], b.get("molde") or "livre", b.get("ajuste") or "", cfg)
+
+    @app.get("/api/video_ia/previa/{nome}")
+    def video_ia_previa_arquivo(nome: str, request: Request):
+        u = usuario(request)
+        if not re.fullmatch(rf"{u['id']}_[0-9a-f]{{12}}\.(jpg|png)", nome):
+            raise HTTPException(404, "Não encontrado.")
+        p = Path(cfg.dados) / "previas" / nome
+        if not p.exists():
+            raise HTTPException(404, "Não encontrado.")
+        return FileResponse(p)
+
+    @app.post("/api/video_ia")
+    async def video_ia_gerar(request: Request):
+        from app import video_ia
+        u = usuario(request)
+        b = await request.json()
+        refazer = str(b.get("refazer") or "")
+        tid = video_ia.pedir(db, u, b, refazer, fila.prioridade_de(u), perfil_montagem(u))
+        return pedido_publico(db.um("SELECT * FROM trabalhos WHERE id=?", (tid,)), u)
+
+    @app.post("/api/editar")
+    async def editar_video(request: Request):
+        """Editar meu vídeo: sobe um vídeo (corpo cru) com as opções na query; ou usa um vídeo pronto (?de=pedido&k=1)."""
+        from app import editor
+        u = usuario(request)
+        q = dict(request.query_params)
+        if q.get("de"):
+            t = db.um("SELECT * FROM trabalhos WHERE id=? AND usuario=?", (q["de"], u["id"]))
+            if not t or t["estado"] != "pronto":
+                raise HTTPException(404, "Vídeo não encontrado.")
+            arq = editor.arquivo_do_pedido(fila.pasta_trabalho(cfg, t["id"]), json.loads(t["resultado"]), int(q.get("k") or 1))
+        else:
+            arq = await editor.receber(request, Path(cfg.dados) / "uploads", u["id"])
+        entrada = {"arquivo": str(arq), "opcoes": editor.opcoes(q), "perfil": perfil_montagem(u)}
+        tid = fila.criar(db, u["id"], "editar", entrada, fila.prioridade_de(u))
+        return pedido_publico(db.um("SELECT * FROM trabalhos WHERE id=?", (tid,)), u)
+
+    # ------------------------------------------------ postar (Posta AI)
+    @app.get("/api/postagens")
+    def postagens(request: Request):
+        u = usuario(request)
+        c = conta_de(u)
+        return {"pode_postar": c["limites"]["postar"], "posta_url": cfg.posta_base, "contas": [], "agendados": []}
+
+    # ------------------------------------------------ Cakto (planos e moedas)
     @app.post("/api/cakto")
     async def cakto(request: Request):
         cru = await request.body()
@@ -435,85 +637,112 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         if not email:
             return {"ok": True, "ignorado": "sem email"}
         u = auth.usuario_por_email(db, email)
+        produto = cfg.planos_por_produto.get(str((dados.get("product") or {}).get("id") or ""), "")
         if evento in ("purchase_approved", "subscription_renewed", "subscription_created"):
+            if produto in planos.PACOTES_MOEDAS:
+                n = planos.PACOTES_MOEDAS[produto]["moedas"]
+                db.exec("UPDATE usuarios SET moedas=moedas+? WHERE id=?", (n, u["id"]))
+                db.exec("INSERT INTO moedas_mov(usuario,delta,motivo,ref,quando) VALUES(?,?,?,?,?)", (u["id"], n, "compra", str(dados.get("id") or ""), agora()))
+                avisos.novo(db, u["id"], f"Chegaram {n} moedas 🪙 Bora criar vídeo com IA!", "/app#/criar/ia")
+                return {"ok": True, "moedas": n}
+            if produto in planos.ADICIONAIS:
+                ad = json.loads(u.get("adicionais") or "{}")
+                ad[produto] = max(agora(), float(ad.get(produto) or 0)) + 32 * 86400
+                db.exec("UPDATE usuarios SET adicionais=? WHERE id=?", (json.dumps(ad), u["id"]))
+                return {"ok": True, "adicional": produto}
+            plano = produto if produto in planos.PLANOS else "corte"
             base = max(agora(), u["ativo_ate"])
-            plano = cfg.planos_por_produto.get(str((dados.get("product") or {}).get("id") or ""), "pro")
             db.exec("UPDATE usuarios SET plano=?, ativo_ate=?, pedido=? WHERE id=?", (plano, base + 32 * 86400, str(dados.get("id") or ""), u["id"]))
-            return {"ok": True, "liberado": email}
+            avisos.novo(db, u["id"], f"Plano {planos.PLANOS[plano]['nome']} liberado 🔥", "/app")
+            return {"ok": True, "liberado": email, "plano": plano}
         if evento in ("refund", "chargeback", "subscription_canceled", "subscription_cancelled"):
+            if produto in planos.PACOTES_MOEDAS:
+                return {"ok": True, "ignorado": "estorno de moedas tratado à mão"}
             db.exec("UPDATE usuarios SET ativo_ate=? WHERE id=?", (agora(), u["id"]))
             return {"ok": True, "revogado": email}
         return {"ok": True, "ignorado": evento}
 
-
-    # ------------------------------------------------ admin (painel do ecossistema no llm-access)
-    def exigir_admin(request: Request):
-        chave = request.headers.get("x-admin-key") or ""
-        if not cfg.admin_key or not hmac.compare_digest(chave, cfg.admin_key):
-            raise HTTPException(401, "chave de admin")
-
+    # ------------------------------------------------ admin
     @app.post("/api/admin/cortesia")
     async def admin_cortesia(request: Request):
-        """Libera o Cortaí para um e-mail por N dias (ponte com outros produtos: Perfilaí Turbo inclui o Cortaí Pro)."""
         exigir_admin(request)
         b = await request.json()
         email = auth.normalizar_email(b.get("email"))
-        plano = b.get("plano") if b.get("plano") in PLANOS else "pro"
-        dias = max(0, min(400, int(32 if b.get("dias") is None else b.get("dias"))))
         if not email:
             raise HTTPException(422, "e-mail inválido")
+        plano = b.get("plano") if b.get("plano") in planos.PLANOS else "viral"
+        dias = max(0, min(400, int(32 if b.get("dias") is None else b.get("dias"))))
         u = auth.usuario_por_email(db, email)
-        ate = agora() + dias * 86400 if dias else agora()
-        db.exec("UPDATE usuarios SET plano=?, ativo_ate=MAX(ativo_ate, ?) WHERE id=?" if dias else "UPDATE usuarios SET ativo_ate=? WHERE id=?",
-                (plano, ate, u["id"]) if dias else (ate, u["id"]))
-        return {"ok": True, "email": email, "plano": plano, "ativo_ate": db.um("SELECT ativo_ate FROM usuarios WHERE id=?", (u["id"],))["ativo_ate"]}
+        db.exec("UPDATE usuarios SET plano=?, ativo_ate=MAX(ativo_ate, ?), moedas=moedas+? WHERE id=?",
+                (plano, agora() + dias * 86400, int(b.get("moedas") or 0), u["id"]))
+        return {"ok": True, "email": email, "plano": plano}
 
     @app.get("/api/admin/resumo")
     def admin_resumo(request: Request):
         exigir_admin(request)
         ativos = db.todos("SELECT plano, COUNT(*) n FROM usuarios WHERE ativo_ate>? GROUP BY plano", (agora(),))
-        receita = sum(r["n"] * (PLANOS.get(r["plano"]) or PLANOS["pro"])["preco"] for r in ativos)
+        receita = sum(r["n"] * planos.PLANOS.get(r["plano"], {"preco": 0})["preco"] for r in ativos)
         mes = agora() - 30 * 86400
-        return {"produto": "cortai", "nome": "Cortaí", "url": cfg.base_url,
-                "assinantes": sum(r["n"] for r in ativos), "por_plano": {r["plano"]: r["n"] for r in ativos},
-                "receita_mensal": round(receita, 2), "cadastros": db.um("SELECT COUNT(*) n FROM usuarios")["n"],
+        return {"produto": "viralizai", "nome": "Viralizaí", "url": cfg.base_url, "assinantes": sum(r["n"] for r in ativos),
+                "por_plano": {r["plano"]: r["n"] for r in ativos}, "receita_mensal": round(receita, 2),
+                "cadastros": db.um("SELECT COUNT(*) n FROM usuarios")["n"],
                 "pedidos_30d": db.um("SELECT COUNT(*) n FROM trabalhos WHERE criado>?", (mes,))["n"],
                 "erros_30d": db.um("SELECT COUNT(*) n FROM trabalhos WHERE criado>? AND estado='erro'", (mes,))["n"],
-                "na_fila": db.um("SELECT COUNT(*) n FROM trabalhos WHERE estado IN ('fila','rodando')")["n"],
-                "planos": planos_publicos()}
+                "na_fila": db.um("SELECT COUNT(*) n FROM trabalhos WHERE estado IN ('fila','rodando','montando')")["n"],
+                "tarefas_fila": db.um("SELECT COUNT(*) n FROM tarefas WHERE estado IN ('fila','rodando')")["n"],
+                "fontes": db.um("SELECT COUNT(*) n FROM fontes WHERE estado='pronta'")["n"],
+                "vitrine": db.um("SELECT COUNT(*) n FROM cortes_base WHERE publico=1 AND oculto=0 AND previa IS NOT NULL")["n"]}
 
     @app.get("/api/admin/assinantes")
     def admin_assinantes(request: Request):
         exigir_admin(request)
         mes = agora() - 30 * 86400
-        linhas = db.todos("""SELECT u.id, u.email, u.criado, u.plano, u.ativo_ate, u.pedido,
-                                    (SELECT COUNT(*) FROM trabalhos t WHERE t.usuario=u.id AND t.criado>?) pedidos_30d,
-                                    (SELECT MAX(criado) FROM trabalhos t WHERE t.usuario=u.id) ultimo
+        linhas = db.todos("""SELECT u.id, u.email, u.nome, u.criado, u.plano, u.ativo_ate, u.moedas, u.origem,
+                                    (SELECT COUNT(*) FROM trabalhos t WHERE t.usuario=u.id AND t.criado>?) pedidos_30d
                              FROM usuarios u ORDER BY u.ativo_ate DESC, u.criado DESC LIMIT 1000""", (mes,))
         for l in linhas:
             l["ativo"] = l["ativo_ate"] > agora()
         return {"assinantes": linhas}
 
-    # ------------------------------------------------ páginas
-    @app.get("/", response_class=HTMLResponse)
-    def inicio():
-        return FileResponse(ESTATICO / "index.html")
+    @app.post("/api/admin/vitrine/{bid}")
+    async def admin_vitrine(bid: int, request: Request):
+        exigir_admin(request)
+        b = await request.json()
+        db.exec("UPDATE cortes_base SET oculto=? WHERE id=?", (1 if b.get("oculto") else 0, bid))
+        return {"ok": True}
 
-    @app.get("/painel", response_class=HTMLResponse)
-    def painel(request: Request):
-        if not usuario(request, obrigatorio=False):
-            return RedirectResponse("/?entrar=1", status_code=303)
-        return FileResponse(ESTATICO / "painel.html")
-
-    app.include_router(admin.rotas(db, cfg.segredo_sessao, """SELECT email, criado, plano, ativo_ate, (ativo_ate > strftime('%s','now')) ativo
+    app.include_router(admin.rotas(db, cfg.segredo_sessao, """SELECT email, nome, criado, plano, ativo_ate, moedas, (ativo_ate > strftime('%s','now')) ativo
         FROM usuarios ORDER BY criado DESC""", seguro=not cfg.dev))
+
+    # ------------------------------------------------ páginas
+    def eh_fael(request: Request) -> bool:
+        return "fael" in (request.headers.get("host") or "").lower() or request.query_params.get("fael") == "1"
+
+    @app.get("/", response_class=HTMLResponse)
+    def inicio(request: Request):
+        return FileResponse(ESTATICO / ("fael.html" if eh_fael(request) else "index.html"))
+
+    @app.get("/entrar", response_class=HTMLResponse)
+    def entrar_pagina():
+        return FileResponse(ESTATICO / "app.html")
+
+    @app.get("/app", response_class=HTMLResponse)
+    def app_pagina():
+        return FileResponse(ESTATICO / "app.html", headers={"Cache-Control": "no-cache"})
+
+    @app.get("/termos", response_class=HTMLResponse)
+    def termos():
+        return FileResponse(ESTATICO / "termos.html")
 
     @app.get("/admin", response_class=HTMLResponse)
     def pagina_admin():
         return FileResponse(ESTATICO / "admin.html")
 
+    from fastapi.staticfiles import StaticFiles
     app.mount("/s", StaticFiles(directory=ESTATICO), name="estatico")
     return app
 
 
-app = criar_app() if os.environ.get("CORTAI_SEM_APP") != "1" else None
+NOMES_TEMA = {"gta": "🎮 GTA", "futebol": "⚽ Futebol", "podcast": "🎙 Podcasts", "humor": "😂 Humor", "games": "🕹 Games", "outros": "✨ Variados"}
+
+app = criar_app() if os.environ.get("VIRALIZAI_SEM_APP") != "1" and os.environ.get("CORTAI_SEM_APP") != "1" else None

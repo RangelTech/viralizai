@@ -3,3 +3,7 @@ __pycache__/
 .venv/
 dados/
 .pytest_cache/
+dados_*/
+motion/node_modules/
+motion/out/
+.venv/

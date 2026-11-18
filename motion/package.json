@@ -1,0 +1,21 @@
+{
+  "name": "viralizai-motion",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Moldes de animação do Viralizaí (Remotion). A IA só preenche os dados (props JSON).",
+  "scripts": {
+    "render": "remotion render src/index.ts",
+    "still": "remotion still src/index.ts"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.530",
+    "@remotion/google-fonts": "4.0.530",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.530"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "@types/react": "19.1.0"
+  }
+}
