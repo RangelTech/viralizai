@@ -103,6 +103,7 @@ async function rotear() {
   const publica = h === "#/entrar", foco = publica || h.startsWith("#/bemvindo");
   $("#topo").classList.toggle("oculto", publica); $("#barra").classList.toggle("oculto", foco); $(".lateral").classList.toggle("oculto", foco);
   $("#ajuda").classList.toggle("oculto", foco);
+  $("#app").classList.toggle("sem-menu", foco);
   if (!publica) {
     try { await conta(); } catch { return; }
     if (!CONTA.onboarding && !h.startsWith("#/bemvindo") && !h.startsWith("#/pedido")) { location.hash = "#/bemvindo/1"; return; }

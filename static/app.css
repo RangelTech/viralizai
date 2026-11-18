@@ -49,6 +49,7 @@ main{padding:16px}
   .lateral .rodape{margin-top:auto;font-size:13px;color:var(--txt3);padding:0 14px}
   .topo .logo{display:none}
   main{padding:24px 32px}
+  #app.sem-menu{grid-template-columns:1fr}
 }
 
 /* ---------- tipografia e blocos ---------- */
