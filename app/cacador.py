@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import logging
 import threading
 import urllib.parse
@@ -51,6 +52,10 @@ def salvar(db: Banco, uid: int, b: dict) -> dict:
              max(1, min(5, int(b.get("videos_dia") or atual["videos_dia"]))), max(1, min(5, int(b.get("cortes_video") or atual["cortes_video"]))),
              b.get("objetivo") if b.get("objetivo") in ("tiktok", "viral", "reels") else atual["objetivo"],
              1 if b.get("postar", atual["postar"]) else 0, hora_post, agora()))
+    hoje_br = dt.datetime.now(BRT)
+    if hora <= hoje_br.strftime("%H:%M"):
+        db.exec("UPDATE cacador SET ultimo_dia=? WHERE usuario=? AND (ultimo_dia IS NULL OR ultimo_dia<?)",
+                (hoje_br.strftime("%Y-%m-%d"),) * 1 + (uid, hoje_br.strftime("%Y-%m-%d")))
     return config(db, uid)
 
 
@@ -58,8 +63,11 @@ def buscar(tema: str, cfg, quantos: int = 15) -> list[dict]:
     """Vídeos da semana sobre o tema (YouTube), já filtrados: gravado (não ao vivo), de 5 min até o limite, com público."""
     import yt_dlp
     from app.motor.fonte import _opcoes
-    url = "https://www.youtube.com/results?search_query=" + urllib.parse.quote(tema) + "&sp=" + urllib.parse.quote(FILTRO_SEMANA)
-    with yt_dlp.YoutubeDL({**_opcoes(cfg), "extract_flat": "in_playlist", "playlistend": quantos}) as y:
+    url = ("https://www.youtube.com/results?search_query=" + urllib.parse.quote(tema) + "&sp=" + urllib.parse.quote(FILTRO_SEMANA)
+           + "&hl=pt-BR&gl=BR")
+    o = {**_opcoes(cfg), "extract_flat": "in_playlist", "playlistend": quantos,
+         "http_headers": {"Accept-Language": "pt-BR,pt;q=0.9"}, "extractor_args": {"youtube": {"lang": ["pt-BR"]}}}
+    with yt_dlp.YoutubeDL(o) as y:
         i = y.extract_info(url, download=False)
     out = []
     for e in i.get("entries") or []:
@@ -68,9 +76,19 @@ def buscar(tema: str, cfg, quantos: int = 15) -> list[dict]:
             continue
         if dur < 300 or dur > cfg.max_duracao_s or views < 5000:
             continue
+        if not _parece_pt(e.get("title") or ""):
+            continue
         out.append({"id": e["id"], "url": f"https://www.youtube.com/watch?v={e['id']}", "titulo": e.get("title") or "", "views": views, "duracao": dur,
                     "canal": e.get("channel") or e.get("uploader") or ""})
     return sorted(out, key=lambda x: -x["views"])
+
+
+_PT = re.compile(r"[ãõçêéáíóúâô]|\b(de|do|da|dos|das|que|não|nao|com|pra|para|no|na|ao|vivo|jogando|gameplay|live|meu|minha|eu|você|voce|isso|muito|o|os|inicio|início|parte|zerando|mano|galera|ele|ela|cara)\b", re.I)
+
+
+def _parece_pt(titulo: str) -> bool:
+    """Público do Viralizaí é brasileiro: só vídeo com cara de português (palavra/acento comum) ou de jogo/live."""
+    return bool(_PT.search(titulo or ""))
 
 
 def rodar(db: Banco, cfg, uid: int, criar_pedido) -> dict:
