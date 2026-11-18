@@ -471,13 +471,16 @@ async function telaAnimacao() {
     <div class="pilulas" id="ideias">${["curiosidade de GTA", "dica de dinheiro", "história de terror", "top 5 carros", "quiz de futebol"].map((x) => `<button class="pilula">${x}</button>`).join("")}</div>
     <h2>Escolha o visual</h2><div class="rolar" id="fmt"><button class="opcao sel" data-f="auto" style="width:170px"><span><b>✨ Escolhe pra mim</b><small>a IA decide</small></span></button>
       ${f.formatos.map((x) => `<button class="opcao" data-f="${x.codigo}" style="width:190px"><span><b>${esc(x.nome)}</b><small>${esc(x.frase)}</small></span></button>`).join("")}</div>
-    <h2>Escolha a voz</h2><div class="pilulas" id="voz">${f.vozes.map((v) => `<button class="pilula ${v.codigo === voz ? "sel" : ""}" data-v="${v.codigo}">${esc(v.nome)}</button>`).join("")}</div>
+    <h2>Escolha a voz</h2><div class="rolar" id="voz">${f.vozes.map((v) => `<button class="opcao ${v.codigo === voz ? "sel" : ""}" data-v="${v.codigo}" style="width:170px">
+      <span><b>${esc(v.nome)}</b><small>${esc(v.descricao)}</small></span>${v.amostra ? `<span class="tag ouvir" data-a="${v.amostra}">▶ ouvir</span>` : ""}</button>`).join("")}</div>
     <h2>Duração</h2><div class="pilulas" id="dur">${[[30, "30 s"], [61, "61 s · ganhar no TikTok"], [90, "90 s"]].map(([s, n]) => `<button class="pilula ${s === seg ? "sel" : ""}" data-s="${s}">${n}</button>`).join("")}</div>
     <div id="rot"></div>
     <div class="acao-fixa"><button class="btn pri bloco pulsa" id="ir">✨ Ver o roteiro</button></div>`;
   $$("#ideias .pilula").forEach((b) => (b.onclick = () => ($("#ideia").value = b.textContent)));
   const sel = (id, attr, cb) => $$(`#${id} [data-${attr}]`).forEach((b) => (b.onclick = () => { $$(`#${id} [data-${attr}]`).forEach((x) => x.classList.toggle("sel", x === b)); cb(b.dataset[attr]); }));
   sel("fmt", "f", (v) => (formato = v)); sel("voz", "v", (v) => (voz = v)); sel("dur", "s", (v) => (seg = +v));
+  let tocando = null;
+  $$("#voz .ouvir").forEach((o) => (o.onclick = (e) => { e.stopPropagation(); if (tocando) tocando.pause(); tocando = new Audio(o.dataset.a); tocando.play().catch(() => {}); }));
   $("#ir").onclick = async () => {
     const b = $("#ir");
     if (!roteiro) {

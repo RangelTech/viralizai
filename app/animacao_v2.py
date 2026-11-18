@@ -19,13 +19,27 @@ from app.motor.juiz import _json
 
 log = logging.getLogger("viralizai.animacao")
 MOTION = Path(__file__).resolve().parent.parent / "motion"
-VOZES = {  # 4 vozes padrão (o Lucas escolhe as definitivas: 47 §13)
-    "masculina": "pt-BR-AntonioNeural",
-    "feminina": "pt-BR-FranciscaNeural",
-    "jovem": "pt-BR-ThalitaMultilingualNeural",
-    "narrador": "pt-BR-MacerioMultilingualNeural",
-}
-VOZES_PUBLICAS = [{"codigo": k, "nome": k.title()} for k in VOZES] + [{"codigo": "sem", "nome": "Sem voz (só texto)"}]
+# Todas as vozes grátis (edge-tts) que falam português; as "multilíngues" falam pt com um leve sotaque.
+# (código, voz, nome na tela, descrição). Amostras em static/vozes/<voz>.mp3.
+VOZES_LISTA = [
+    ("masculina", "pt-BR-AntonioNeural", "Antônio", "masculina, grave"),
+    ("feminina", "pt-BR-FranciscaNeural", "Francisca", "feminina, clara"),
+    ("jovem", "pt-BR-ThalitaMultilingualNeural", "Thalita", "feminina, jovem"),
+    ("andre", "en-US-AndrewMultilingualNeural", "André", "masculina, narrador"),
+    ("bruno", "en-US-BrianMultilingualNeural", "Bruno", "masculina, animada"),
+    ("ava", "en-US-AvaMultilingualNeural", "Ava", "feminina, animada"),
+    ("ema", "en-US-EmmaMultilingualNeural", "Ema", "feminina, calma"),
+    ("william", "en-AU-WilliamMultilingualNeural", "William", "masculina, sotaque leve"),
+    ("remy", "fr-FR-RemyMultilingualNeural", "Rémy", "masculina, sotaque leve"),
+    ("vivi", "fr-FR-VivienneMultilingualNeural", "Vivi", "feminina, sotaque leve"),
+    ("giuseppe", "it-IT-GiuseppeMultilingualNeural", "Giuseppe", "masculina, sotaque italiano"),
+    ("hyunsu", "ko-KR-HyunsuMultilingualNeural", "Hyunsu", "masculina, jovem"),
+    ("duarte", "pt-PT-DuarteNeural", "Duarte", "masculina, de Portugal"),
+    ("raquel", "pt-PT-RaquelNeural", "Raquel", "feminina, de Portugal"),
+]
+VOZES = {c: v for c, v, _, _ in VOZES_LISTA}
+VOZES_PUBLICAS = [{"codigo": c, "nome": n, "descricao": d, "amostra": f"/s/vozes/{v}.mp3"} for c, v, n, d in VOZES_LISTA] + \
+    [{"codigo": "sem", "nome": "Sem voz", "descricao": "só texto na tela", "amostra": None}]
 FORMATOS = {
     "historia": ("História narrada", "voz conta uma história com legenda gigante e fundo hipnótico"),
     "conversa": ("Conversa de WhatsApp", "conversa aparecendo bolha a bolha, com reviravolta"),

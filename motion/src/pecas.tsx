@@ -36,8 +36,8 @@ export const Fundo: React.FC<{ t: Tema; estilo?: "grade" | "orbes" | "raios" }> 
         <AbsoluteFill style={{ background: `repeating-conic-gradient(from ${ang}deg at 50% 45%, ${t.destaque}14 0deg 10deg, transparent 10deg 20deg)` }} />
       )}
       {estilo === "orbes" && [0, 1, 2, 3].map((i) => (
-        <div key={i} style={{ position: "absolute", width: 700, height: 700, borderRadius: "50%", filter: "blur(120px)", opacity: 0.35,
-          background: i % 2 ? t.destaque : t.fundo[2],
+        <div key={i} style={{ position: "absolute", width: 700, height: 700, borderRadius: "50%", opacity: 0.45,
+          background: `radial-gradient(circle, ${i % 2 ? t.destaque : t.fundo[2]} 0%, transparent 70%)`,
           left: 540 + Math.sin(f / (70 + i * 13) + i * 2) * 420 - 350, top: 960 + Math.cos(f / (90 + i * 11) + i) * 700 - 350 }} />
       ))}
       <AbsoluteFill style={{ background: "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,.65) 100%)" }} />
