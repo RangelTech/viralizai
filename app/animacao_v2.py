@@ -256,27 +256,52 @@ def narrar(partes: list[tuple[str, float]], voz: str, destino: Path) -> tuple[li
 
 
 # ---------------------------------------------------------------- B-roll (Pexels, quando houver chave)
+def _baixar(url: str, cache: Path, destino: Path) -> str:
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    if not cache.exists():
+        tmp = cache.with_suffix(".parte")
+        with httpx.stream("GET", url, timeout=60, follow_redirects=True, headers={"User-Agent": "Viralizai/1.0 (contato@rangeltech.net)"}) as s, open(tmp, "wb") as f:
+            s.raise_for_status()
+            for b in s.iter_bytes():
+                f.write(b)
+        tmp.replace(cache)
+    destino = destino.with_suffix(cache.suffix)
+    shutil.copy(cache, destino)
+    return destino.name
+
+
 def broll(busca: str, destino: Path, cfg) -> str | None:
-    if not cfg.pexels_key or not busca:
+    """Apoio visual da cena, nesta ordem: vídeo da Pixabay (chave grátis) > foto do Openverse (sem chave, só licença que
+    permite uso comercial). O Pexels suspendeu chaves novas; não raspamos site nenhum (termos de uso)."""
+    if not busca:
+        return None
+    if cfg.pixabay_key:
+        try:
+            r = httpx.get("https://pixabay.com/api/videos/", params={"key": cfg.pixabay_key, "q": busca[:90], "per_page": 5, "safesearch": "true"}, timeout=20)
+            r.raise_for_status()
+            for v in r.json().get("hits") or []:
+                arq = (v.get("videos") or {}).get("medium") or (v.get("videos") or {}).get("small")
+                if arq and arq.get("url"):
+                    return _baixar(arq["url"], Path(cfg.dados) / "broll" / f"pixabay_{v['id']}.mp4", destino)
+        except Exception as e:  # noqa: BLE001
+            log.warning("broll pixabay %s: %s", busca, e)
+    if os.environ.get("VIRALIZAI_BROLL_OPENVERSE") != "1":  # medido 18/11: fotos pouco ligadas à cena; desligado até melhorar a busca
         return None
     try:
-        r = httpx.get("https://api.pexels.com/videos/search", params={"query": busca, "orientation": "portrait", "size": "medium", "per_page": 5},
-                      headers={"Authorization": cfg.pexels_key}, timeout=20)
+        r = httpx.get("https://api.openverse.org/v1/images/", params={"q": busca[:90], "license_type": "commercial", "mature": "false",
+                                                                      "page_size": 8, "aspect_ratio": "tall,square"}, timeout=20)
         r.raise_for_status()
-        for v in r.json().get("videos") or []:
-            arqs = sorted([f for f in v.get("video_files") or [] if f.get("height") and f["height"] <= 1920 and f.get("file_type") == "video/mp4"],
-                          key=lambda f: -f["height"])
-            if arqs:
-                cache = Path(cfg.dados) / "broll" / f"pexels_{v['id']}.mp4"
-                cache.parent.mkdir(parents=True, exist_ok=True)
-                if not cache.exists():
-                    with httpx.stream("GET", arqs[0]["link"], timeout=60, follow_redirects=True) as s, open(cache, "wb") as f:
-                        for b in s.iter_bytes():
-                            f.write(b)
-                shutil.copy(cache, destino)
-                return destino.name
+        for im in r.json().get("results") or []:
+            url = im.get("url") or ""
+            if not url.lower().split("?")[0].endswith((".jpg", ".jpeg", ".png")) or (im.get("width") or 0) < 600:
+                continue
+            ext = ".png" if url.lower().split("?")[0].endswith(".png") else ".jpg"
+            try:
+                return _baixar(url, Path(cfg.dados) / "broll" / f"openverse_{im['id']}{ext}", destino)
+            except Exception:  # noqa: BLE001  foto que não baixa: tenta a próxima
+                continue
     except Exception as e:  # noqa: BLE001
-        log.warning("broll %s: %s", busca, e)
+        log.warning("broll openverse %s: %s", busca, e)
     return None
 
 
@@ -323,7 +348,7 @@ def props(r: dict, voz: str, pasta: Path, perfil: dict, cfg) -> dict:
     cenas = []
     for i, (c, (a, b)) in enumerate(zip(r["cenas"], faixas)):
         fim = faixas[i + 1][0] if i + 1 < len(faixas) else dur
-        arq = broll(c.get("broll"), pasta / f"broll{i}.mp4", cfg) if c.get("broll") else None
+        arq = broll(c.get("broll"), pasta / f"broll{i}.mp4", cfg) if c.get("broll") and r["formato"] in ("historia", "curiosidade", "top5", "noticia") else None
         cenas.append({"inicio": round(a, 2), "fim": round(fim, 2), "fala": c["fala"], "destaque": c.get("destaque") or "", "emoji": c.get("emoji") or "",
                       "enfase": c.get("enfase") or [], "icone": c.get("icone") or c.get("emoji") or "", **({"broll": arq} if arq else {})})
         if i:
@@ -386,7 +411,7 @@ def fazer(entrada: dict, pasta: Path, cfg, avisar) -> dict:
     renderizar(p, pasta, out, avisar)
     capa = pasta / "animacao.jpg"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "3", "-i", str(out), "-frames:v", "1", "-vf", "scale=360:-2", "-q:v", "4", str(capa)], check=False)
-    for x in list(pasta.glob("broll*.mp4")) + [pasta / "voz.mp3"]:
+    for x in list(pasta.glob("broll*")) + [pasta / "voz.mp3"]:
         x.unlink(missing_ok=True)
     shutil.rmtree(pasta / "sfx", ignore_errors=True)
     from app.pipeline import duracao
