@@ -86,6 +86,11 @@ def _fechar_se_acabou(db: Banco, cfg: Config, tid: str) -> None:
     if ok:
         db.exec("UPDATE trabalhos SET estado='pronto', etapa='Pronto', progresso=1, fim=? WHERE id=?", (agora(), tid))
         avisos.pronto(db, cfg, t, len(ok), (res.get("video") or {}).get("titulo") or "")
+        try:  # Caçador com "postar sozinho": agenda os cortes nas redes conectadas
+            from app import cacador
+            cacador.agendar_posts_do_pedido(db, cfg, t, res)
+        except Exception:  # noqa: BLE001
+            log.exception("agendar posts do caçador %s", tid)
     else:
         db.exec("UPDATE trabalhos SET estado='erro', etapa='Não deu certo', erro=?, fim=? WHERE id=?",
                 ("Não consegui montar os cortes desse vídeo. Esse pedido não conta no seu limite; tente de novo.", agora(), tid))

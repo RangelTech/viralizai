@@ -55,6 +55,8 @@ class Config:
     pixabay_key: str = ""
     atende_webhook: str = ""                                 # aviso no WhatsApp quando o vídeo fica pronto
     posta_base: str = "https://postaai.rangeltech.net"
+    pn_url: str = "http://perfil-navegador:8000"   # perfil-navegador (rede interna): login e publicação nas redes
+    pn_token: str = ""
 
 
 def carregar() -> Config:
@@ -95,4 +97,6 @@ def carregar() -> Config:
         pixabay_key=_e("PIXABAY_KEY", ""),
         atende_webhook=_e("ATENDE_WEBHOOK", ""),
         posta_base=_e("POSTA_BASE", "https://postaai.rangeltech.net").rstrip("/"),
+        pn_url=_e("PN_URL", "http://perfil-navegador:8000").rstrip("/"),
+        pn_token=_e("PN_TOKEN", ""),
     )

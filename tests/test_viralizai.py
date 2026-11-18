@@ -281,3 +281,90 @@ def test_animacao_validar_idempotente():
                   {"formato": "noticia", "faixa": "URGENTE", "manchete": "m", "cenas": [{"fala": "f"}], "numeros": [{"rotulo": "r", "valor": "1"}]}):
         uma = a.validar(bruto)
         assert a.validar(uma) == uma, bruto["formato"]
+
+
+# ---------------------------------------------------------------- postar sozinho e caçador
+def _fake_pn(registro):
+    import httpx
+
+    def h(req):
+        caminho = req.url.path
+        registro.append((req.method, caminho))
+        if caminho == "/logins":
+            return httpx.Response(200, json={"id": "L1", "passo": {"tipo": "qr", "imagem": "data:image/png;base64,AA", "espera_s": 3}})
+        if caminho.startswith("/logins/L1"):
+            return httpx.Response(200, json={"id": "L1", "passo": {"tipo": "conectado"}})
+        if caminho.endswith("/publicar"):
+            if len([r for r in registro if r[1].endswith("/publicar")]) == 1:
+                return httpx.Response(502, json={"detail": "rede fora"})  # 1ª tentativa falha: tem que reenviar
+            return httpx.Response(200, json={"link": "https://tiktok.com/@x/video/1"})
+        return httpx.Response(200, json={})
+    return httpx.MockTransport(h)
+
+
+def test_postar_sozinho_ponta_a_ponta(cli, tmp_path, monkeypatch):
+    c, db = cli
+    from app import postar, pn as pnmod
+    reg = []
+    transporte = _fake_pn(reg)
+    monkeypatch.setattr(postar, "cliente", lambda cfg: pnmod.PN("http://pn", "tok", transporte))
+    _conta(c)
+    assert c.post("/api/contas", json={"rede": "tiktok", "aceite": True}).status_code == 402  # teste grátis não posta
+    db.exec("UPDATE usuarios SET plano='viral', ativo_ate=?", (time.time() + 9999,))
+    r = c.post("/api/contas", json={"rede": "tiktok", "aceite": True}).json()
+    assert r["passo"]["tipo"] == "qr"
+    assert c.get(f"/api/contas/{r['conta']}/login").json()["passo"]["tipo"] == "conectado"
+    # um pedido pronto com 1 corte
+    from app import fila
+    pasta = fila.pasta_trabalho(c.app.state.cfg, "P1"); pasta.mkdir(parents=True)
+    (pasta / "corte1.mp4").write_bytes(b"0" * 2000)
+    res = {"cortes": [{"k": 1, "estado": "pronto", "arquivo": "corte1.mp4", "legenda": "olha isso", "hashtags": ["#gta"], "nota": 90}]}
+    db.exec("INSERT INTO trabalhos(id,usuario,tipo,entrada,estado,resultado,criado) VALUES('P1',1,'cortes','{}','pronto',?,?)", (json.dumps(res), time.time()))
+    assert c.post("/api/posts", json={"pedido": "P1", "k": 1, "contas": [r["conta"]]}).status_code == 200
+    cfg = c.app.state.cfg
+    postar.rodar_fila(db, cfg)
+    p = db.um("SELECT * FROM posts")
+    assert p["estado"] == "agendado" and p["tentativas"] == 1  # falhou 1x e foi reagendado
+    db.exec("UPDATE posts SET proxima=0")
+    postar.rodar_fila(db, cfg)
+    p = db.um("SELECT * FROM posts")
+    assert p["estado"] == "publicado" and p["link"].startswith("https://tiktok") and "#gta" in p["legenda"]
+    assert any("publicar" in x[1] for x in reg)
+
+
+def test_cacador_busca_corta_e_nao_repete(cli, monkeypatch):
+    c, db = cli
+    from app import cacador
+    _conta(c)
+    assert c.post("/api/cacador", json={"ativo": True, "temas": ["gta rp"]}).status_code == 402  # só no Piloto
+    db.exec("UPDATE usuarios SET plano='piloto', ativo_ate=?", (time.time() + 9999,))
+    monkeypatch.setattr(cacador, "buscar", lambda tema, cfg, quantos=15: [
+        {"id": "AAAAAAAAAAA", "url": "https://www.youtube.com/watch?v=AAAAAAAAAAA", "titulo": "live 1", "views": 90000, "duracao": 3600, "canal": "x"},
+        {"id": "BBBBBBBBBBB", "url": "https://www.youtube.com/watch?v=BBBBBBBBBBB", "titulo": "live 2", "views": 50000, "duracao": 3600, "canal": "y"}])
+    cfg = c.post("/api/cacador", json={"ativo": True, "temas": ["gta rp"], "hora": "09:00", "videos_dia": 1, "cortes_video": 2}).json()
+    assert cfg["temas"] == ["gta rp"] and cfg["ativo"]
+    r1 = c.post("/api/cacador/rodar").json()
+    assert r1["achados"] == 2 and len(r1["pedidos"]) == 1 and "live 1" in r1["pedidos"][0]["titulo"]
+    r2 = c.post("/api/cacador/rodar").json()
+    assert len(r2["pedidos"]) == 1 and "live 2" in r2["pedidos"][0]["titulo"]  # não repete o vídeo da 1ª rodada
+    t = db.um("SELECT entrada FROM trabalhos WHERE id=?", (r1["pedidos"][0]["id"],))
+    assert json.loads(t["entrada"])["cacador"] and json.loads(t["entrada"])["quantos"] == 2
+    assert len(c.get("/api/postagens").json()["cacador"]["rodadas"]) == 2
+
+
+def test_cacador_agenda_1_por_dia_por_rede(cli):
+    c, db = cli
+    from app import cacador, fila
+    _conta(c)
+    now = time.time()
+    db.exec("INSERT INTO contas(usuario,rede,estado,criado,atualizado) VALUES(1,'tiktok','conectada',?,?),(1,'instagram','conectada',?,?)", (now, now, now, now))
+    pasta = fila.pasta_trabalho(c.app.state.cfg, "C1"); pasta.mkdir(parents=True)
+    for k in (1, 2):
+        (pasta / f"corte{k}.mp4").write_bytes(b"0" * 1000)
+    res = {"cortes": [{"k": 1, "estado": "pronto", "arquivo": "corte1.mp4", "nota": 70}, {"k": 2, "estado": "pronto", "arquivo": "corte2.mp4", "nota": 95}]}
+    t = {"id": "C1", "usuario": 1, "entrada": json.dumps({"postar_auto": True, "hora_post": "19:00"})}
+    assert cacador.agendar_posts_do_pedido(db, c.app.state.cfg, t, res) == 4
+    por_conta = db.todos("SELECT conta, k, quando FROM posts ORDER BY conta, quando")
+    assert [x["k"] for x in por_conta[:2]] == [2, 1]  # o de nota maior primeiro
+    assert abs(por_conta[1]["quando"] - por_conta[0]["quando"] - 86400) < 1  # 1 por dia
+    assert cacador.agendar_posts_do_pedido(db, c.app.state.cfg, t, res) == 0  # não duplica

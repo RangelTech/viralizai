@@ -20,7 +20,7 @@
   try {
     const r = await fetch("/api/publico/vitrine?limite=15").then((x) => x.json());
     if (r.itens && r.itens.length) {
-      $("#prova").innerHTML = r.itens.map((b) => `<div class="vid">${b.capa_url ? `<img src="${b.capa_url}" alt="" loading="lazy">` : ""}
+      $("#prova").innerHTML = r.itens.map((b) => `<div class="vid" data-video="${b.previa_url || ""}" data-tipo="corte" data-titulo="${esc(b.gancho || b.titulo)}">${b.capa_url ? `<img src="${b.capa_url}" alt="" loading="lazy">` : ""}
         ${b.previa_url ? `<video muted playsinline loop preload="none" data-src="${b.previa_url}" style="position:absolute;inset:0"></video>` : ""}
         <span>🔥 ${b.nota}</span><b>${esc(b.gancho || b.titulo)}</b></div>`).join("");
       const vio = new IntersectionObserver((es) => es.forEach((e) => { const v = e.target; if (e.isIntersecting) { if (!v.src) v.src = v.dataset.src; v.play().catch(() => {}); } else v.pause(); }), { threshold: 0.5 });
@@ -31,7 +31,7 @@
   try {
     const e = await fetch("/api/publico/exemplos").then((x) => x.json());
     if (e.itens && e.itens.length) {
-      $("#anims").innerHTML = e.itens.map((x) => `<div class="vid">${x.capa_url ? `<img src="${x.capa_url}" alt="" loading="lazy">` : ""}
+      $("#anims").innerHTML = e.itens.map((x) => `<div class="vid" data-video="${x.url}" data-tipo="animacao" data-titulo="${esc(x.titulo)}">${x.capa_url ? `<img src="${x.capa_url}" alt="" loading="lazy">` : ""}
         <video muted playsinline loop preload="none" data-src="${x.url}" style="position:absolute;inset:0"></video><b>${esc(x.titulo)}</b></div>`).join("");
       const aio = new IntersectionObserver((es) => es.forEach((en) => { const v = en.target; if (en.isIntersecting) { if (!v.src) v.src = v.dataset.src; v.play().catch(() => {}); } else v.pause(); }), { threshold: 0.5 });
       document.querySelectorAll("#anims video").forEach((v) => aio.observe(v));
@@ -46,4 +46,27 @@
     $("#moedas").innerHTML = `<div><b>🤖 Vídeo com IA</b><br><span style="color:var(--txt2)">Pacotes de moedas, 1 moeda = 1 vídeo de 10 s</span></div>` +
       p.moedas.map((m) => `<span><b>${m.moedas} vídeos</b> ${brl(m.preco)}</span>`).join("");
   } catch {}
+
+  // vídeo completo num modal, com som, e o caminho pra assinar
+  const modal = document.createElement("div");
+  modal.className = "modal-video";
+  modal.innerHTML = `<div class="mv-caixa"><button class="mv-fechar" aria-label="Fechar">✕</button><video playsinline controls></video>
+    <b class="mv-titulo"></b><a class="btn pulsa mv-cta1" href="/entrar">🚀 QUERO POSTAR ESSE VÍDEO NO MEU CANAL AGORA</a>
+    <a class="btn sec mv-cta2" href="/entrar">✨ Quero fazer vídeos assim</a><small>Teste grátis: 1 corte com o seu @, sem cartão.</small></div>`;
+  document.body.appendChild(modal);
+  const mv = modal.querySelector("video");
+  const fechar = () => { modal.classList.remove("aberto"); mv.pause(); mv.removeAttribute("src"); mv.load(); document.body.style.overflow = ""; };
+  modal.querySelector(".mv-fechar").onclick = fechar;
+  modal.onclick = (e) => { if (e.target === modal) fechar(); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") fechar(); });
+  document.addEventListener("click", (e) => {
+    const card = e.target.closest(".vid[data-video]");
+    if (!card || !card.dataset.video) return;
+    const anim = card.dataset.tipo === "animacao";
+    modal.querySelector(".mv-titulo").textContent = card.dataset.titulo || "";
+    modal.querySelector(".mv-cta2").textContent = anim ? "✨ Quero criar animações assim" : "✂️ Quero gerar cortes assim";
+    mv.src = card.dataset.video; mv.muted = false;
+    modal.classList.add("aberto"); document.body.style.overflow = "hidden";
+    mv.play().catch(() => { mv.muted = true; mv.play().catch(() => {}); });
+  });
 })();

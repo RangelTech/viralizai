@@ -634,12 +634,174 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         tid = fila.criar(db, u["id"], "editar", entrada, fila.prioridade_de(u))
         return pedido_publico(db.um("SELECT * FROM trabalhos WHERE id=?", (tid,)), u)
 
-    # ------------------------------------------------ postar (Posta AI)
+    # ------------------------------------------------ postar sozinho (mesma mecânica do Posta AI, via perfil-navegador)
+    from app import cacador, postar
+    from app.pn import PNErro
+
+    def erro_pn(e: PNErro):
+        raise HTTPException(e.status if 400 <= e.status < 600 else 502, e.mensagem)
+
+    def pode_postar(u: dict) -> bool:
+        return planos.limites(planos.plano_ativo(u, agora()))["postar"]
+
     @app.get("/api/postagens")
     def postagens(request: Request):
         u = usuario(request)
-        c = conta_de(u)
-        return {"pode_postar": c["limites"]["postar"], "posta_url": cfg.posta_base, "contas": [], "agendados": []}
+        return {"pode_postar": pode_postar(u), "contas": postar.contas_ativas(db, u["id"]), "posts": postar.posts_publicos(db, u["id"]),
+                "cacador": {**cacador.config(db, u["id"]), "pode": cacador.pode_usar(u), "rodadas": cacador.rodadas(db, u["id"])},
+                "redes": {k: {"nome": v["nome"], "login": v["login"]} for k, v in postar.REDES.items()}}
+
+    @app.post("/api/contas")
+    async def conectar_conta(request: Request):
+        u = usuario(request)
+        if not pode_postar(u):
+            raise paywall("Postar sozinho é do plano Viral 🚀", "postar")
+        b = await request.json()
+        rede = b.get("rede")
+        if rede not in postar.REDES:
+            raise HTTPException(422, "Escolha TikTok ou Instagram.")
+        if not b.get("aceite"):
+            raise HTTPException(422, "Marque o aceite pra continuar.")
+        if len([k for k in postar.contas_ativas(db, u["id"]) if k["rede"] == rede]) >= 3:
+            raise HTTPException(409, "Você já tem 3 contas dessa rede conectadas.")
+        usuario_rede, senha = str(b.get("usuario") or "").strip()[:120], str(b.get("senha") or "")
+        if postar.REDES[rede]["login"] == "senha" and (not usuario_rede or not senha):
+            raise HTTPException(422, "Informe usuário e senha.")
+        cur = db.exec("INSERT INTO contas(usuario,rede,rotulo,estado,criado,atualizado) VALUES(?,?,?,?,?,?)",
+                      (u["id"], rede, usuario_rede or None, "conectando", agora(), agora()))
+        k = db.um("SELECT * FROM contas WHERE id=?", (cur.lastrowid,))
+        try:
+            res = await run_in_threadpool(postar.cliente(cfg).login, postar.REDES[rede]["pn"], postar.chave_pn(k["id"]), usuario_rede, senha)
+        except PNErro as e:
+            db.exec("UPDATE contas SET estado='desconectada' WHERE id=?", (k["id"],))
+            erro_pn(e)
+        del senha
+        db.exec("UPDATE contas SET login_id=? WHERE id=?", (res["id"], k["id"]))
+        return postar.vista_login(db, k, res)
+
+    def minha_conta(u: dict, cid: int) -> dict:
+        k = db.um("SELECT * FROM contas WHERE id=? AND usuario=?", (cid, u["id"]))
+        if not k:
+            raise HTTPException(404, "Conta não encontrada.")
+        return k
+
+    @app.get("/api/contas/{cid}/login")
+    async def conta_login_status(cid: int, request: Request):
+        k = minha_conta(usuario(request), cid)
+        if not k["login_id"]:
+            return {"conta": cid, "passo": {"tipo": "conectado" if k["estado"] == "conectada" else "erro"}}
+        try:
+            return postar.vista_login(db, k, await run_in_threadpool(postar.cliente(cfg).login_status, k["login_id"]))
+        except PNErro as e:
+            erro_pn(e)
+
+    @app.post("/api/contas/{cid}/login")
+    async def conta_login_responder(cid: int, request: Request):
+        k = minha_conta(usuario(request), cid)
+        if not k["login_id"]:
+            raise HTTPException(409, "Começa a conexão de novo.")
+        valor = str((await request.json()).get("valor") or "")[:200]
+        try:
+            return postar.vista_login(db, k, await run_in_threadpool(postar.cliente(cfg).responder, k["login_id"], valor))
+        except PNErro as e:
+            erro_pn(e)
+
+    @app.delete("/api/contas/{cid}")
+    async def conta_desconectar(cid: int, request: Request):
+        k = minha_conta(usuario(request), cid)
+        pn = postar.cliente(cfg)
+        try:
+            if k["login_id"]:
+                await run_in_threadpool(pn.cancelar, k["login_id"])
+            await run_in_threadpool(pn.apagar, postar.chave_pn(cid))
+        except PNErro:
+            pass
+        db.exec("UPDATE contas SET estado='desconectada', login_id=NULL WHERE id=?", (cid,))
+        db.exec("UPDATE posts SET estado='cancelado' WHERE conta=? AND estado='agendado'", (cid,))
+        return {"ok": True}
+
+    @app.post("/api/posts")
+    async def novo_post(request: Request):
+        """Postar um vídeo pronto (corte, animação, IA, editado) agora ou num horário, numa ou mais contas."""
+        u = usuario(request)
+        if not pode_postar(u):
+            raise paywall("Postar sozinho é do plano Viral 🚀", "postar")
+        b = await request.json()
+        t = db.um("SELECT * FROM trabalhos WHERE id=? AND usuario=? AND estado='pronto'", (str(b.get("pedido") or ""), u["id"]))
+        if not t:
+            raise HTTPException(404, "Vídeo não encontrado.")
+        c = next((x for x in json.loads(t["resultado"]).get("cortes", []) if x.get("k") == int(b.get("k") or 1) and x.get("estado") == "pronto"), None)
+        if not c:
+            raise HTTPException(404, "Vídeo não encontrado.")
+        contas = [minha_conta(u, int(i)) for i in (b.get("contas") or [])]
+        contas = [k for k in contas if k["estado"] == "conectada"]
+        if not contas:
+            raise HTTPException(422, "Escolha pelo menos uma conta conectada.")
+        try:
+            quando = float(b.get("quando") or 0) or agora()
+        except (TypeError, ValueError):
+            raise HTTPException(422, "Horário inválido.")
+        if quando > agora() + 60 * 86400:
+            raise HTTPException(422, "Dá pra agendar até 60 dias pra frente.")
+        pasta = fila.pasta_trabalho(cfg, t["id"])
+        legenda = str(b.get("legenda") if b.get("legenda") is not None else postar.legenda_pronta(c))
+        ids = [postar.agendar(db, cfg, u["id"], k["id"], pasta / c["arquivo"], legenda, max(quando, agora()), t["id"], c["k"],
+                              pasta / c["capa"] if c.get("capa") else None) for k in contas]
+        return {"ok": True, "posts": ids}
+
+    @app.post("/api/posts/{pid}/{acao}")
+    def post_acao(pid: int, acao: str, request: Request):
+        u = usuario(request)
+        p = db.um("SELECT * FROM posts WHERE id=? AND usuario=?", (pid, u["id"]))
+        if not p:
+            raise HTTPException(404, "Post não encontrado.")
+        if acao == "cancelar" and p["estado"] in ("agendado", "falhou"):
+            db.exec("UPDATE posts SET estado='cancelado' WHERE id=?", (pid,))
+        elif acao == "tentar" and p["estado"] == "falhou":
+            db.exec("UPDATE posts SET estado='agendado', tentativas=0, proxima=NULL, erro=NULL, quando=? WHERE id=?", (agora(), pid))
+        else:
+            raise HTTPException(409, "Não dá pra fazer isso com esse post agora.")
+        return {"ok": True}
+
+    @app.get("/api/posts/{pid}/capa.jpg")
+    def post_capa(pid: int, request: Request):
+        u = usuario(request)
+        p = db.um("SELECT capa FROM posts WHERE id=? AND usuario=?", (pid, u["id"]))
+        if not p or not p["capa"] or not Path(p["capa"]).exists():
+            raise HTTPException(404, "Sem capa.")
+        return FileResponse(p["capa"], media_type="image/jpeg")
+
+    # ------------------------------------------------ Caçador (busca sozinho)
+    def pedido_cacador(u: dict, url: str, extras: dict) -> dict:
+        from app.motor import fonte
+        chave = fonte.chave_rapida(url)
+        db.exec("INSERT OR IGNORE INTO fontes(chave,url,criado) VALUES(?,?,?)", (chave, url, agora()))
+        return novo_pedido_cortes(u, chave, {"url": url, **extras})
+
+    @app.post("/api/cacador")
+    async def cacador_salvar(request: Request):
+        u = usuario(request)
+        b = await request.json()
+        if b.get("ativo") and not cacador.pode_usar(u):
+            raise paywall("O Caçador (a IA que busca vídeo sozinha) é do plano Piloto Automático 🎯", "piloto")
+        if b.get("postar") and not pode_postar(u):
+            raise paywall("Postar sozinho é do plano Viral 🚀", "postar")
+        try:
+            return cacador.salvar(db, u["id"], b)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+
+    @app.post("/api/cacador/rodar")
+    async def cacador_rodar(request: Request):
+        """Rodar agora (sem esperar o horário): mesma rodada do relógio."""
+        u = usuario(request)
+        if not cacador.pode_usar(u):
+            raise paywall("O Caçador (a IA que busca vídeo sozinha) é do plano Piloto Automático 🎯", "piloto")
+        return await run_in_threadpool(cacador.rodar, db, cfg, u["id"], pedido_cacador)
+
+    if iniciar_fila:
+        postar.iniciar(db, cfg, app.state.parar)
+        cacador.iniciar(db, cfg, app.state.parar, pedido_cacador)
 
     # ------------------------------------------------ Cakto (planos e moedas)
     @app.post("/api/cakto")

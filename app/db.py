@@ -89,6 +89,27 @@ CREATE TABLE IF NOT EXISTS moedas_mov (id INTEGER PRIMARY KEY, usuario INTEGER N
 CREATE TABLE IF NOT EXISTS avisos (id INTEGER PRIMARY KEY, usuario INTEGER NOT NULL, texto TEXT NOT NULL, link TEXT, lido INTEGER NOT NULL DEFAULT 0, quando REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS avisos_u ON avisos(usuario, lido, quando);
 CREATE TABLE IF NOT EXISTS eventos_cakto (id TEXT PRIMARY KEY, recebido REAL NOT NULL, corpo TEXT NOT NULL);
+-- contas do TikTok/Instagram do cliente (a sessão fica cifrada no perfil-navegador; aqui só a chave "viralizai:<id>")
+CREATE TABLE IF NOT EXISTS contas (
+  id INTEGER PRIMARY KEY, usuario INTEGER NOT NULL, rede TEXT NOT NULL, rotulo TEXT, estado TEXT NOT NULL DEFAULT 'conectando',
+  login_id TEXT, criado REAL NOT NULL, atualizado REAL NOT NULL
+);
+-- posts: na hora marcada o laço publica pelo perfil-navegador; erro passageiro tenta de novo com espera crescente
+CREATE TABLE IF NOT EXISTS posts (
+  id INTEGER PRIMARY KEY, usuario INTEGER NOT NULL, conta INTEGER NOT NULL, pedido TEXT, k INTEGER, arquivo TEXT NOT NULL, capa TEXT,
+  legenda TEXT, quando REAL NOT NULL, estado TEXT NOT NULL DEFAULT 'agendado', tentativas INTEGER NOT NULL DEFAULT 0, proxima REAL,
+  erro TEXT, link TEXT, publicado REAL, origem TEXT NOT NULL DEFAULT 'manual', criado REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS posts_fila ON posts(estado, quando);
+-- Caçador (busca sozinho): temas, horário e o que fazer com o que achar
+CREATE TABLE IF NOT EXISTS cacador (
+  usuario INTEGER PRIMARY KEY, ativo INTEGER NOT NULL DEFAULT 1, temas TEXT NOT NULL, hora TEXT NOT NULL DEFAULT '09:00',
+  videos_dia INTEGER NOT NULL DEFAULT 1, cortes_video INTEGER NOT NULL DEFAULT 3, objetivo TEXT NOT NULL DEFAULT 'tiktok',
+  postar INTEGER NOT NULL DEFAULT 0, hora_post TEXT NOT NULL DEFAULT '19:00', ultimo_dia TEXT, atualizado REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS cacador_vistos (usuario INTEGER NOT NULL, fonte TEXT NOT NULL, quando REAL NOT NULL, PRIMARY KEY(usuario, fonte));
+CREATE TABLE IF NOT EXISTS cacador_rodadas (id INTEGER PRIMARY KEY, usuario INTEGER NOT NULL, quando REAL NOT NULL, resumo TEXT NOT NULL);
+
 """
 
 

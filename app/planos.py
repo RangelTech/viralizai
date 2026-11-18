@@ -38,4 +38,4 @@ def limites(plano: str) -> dict:
 
 def plano_minimo(recurso: str) -> str:
     """Primeiro plano que libera um recurso (para o paywall contextual)."""
-    return {"animacao": "animacao", "postar": "viral", "cortes": "corte", "baixar": "corte"}.get(recurso, "corte")
+    return {"animacao": "animacao", "postar": "viral", "cortes": "corte", "baixar": "corte", "piloto": "piloto"}.get(recurso, "corte")

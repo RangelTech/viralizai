@@ -376,11 +376,35 @@ async function baixar(url) {
   if (r && r.status === 402) return paywall("Gostou? Pra baixar e postar, escolha um plano 🔥", "corte");
   const a = document.createElement("a"); a.href = url + "?baixar=1"; a.download = ""; document.body.appendChild(a); a.click(); a.remove();
 }
-function postar(ref) {
+async function postar(ref) {
+  const [pid, k] = ref.split("/");
   if (!CONTA.limites.postar) return abrirFolha(`<h2 style="margin-top:0">Postar sozinho é do plano Viral</h2><p class="sub">No Viral a gente posta e agenda no TikTok e no Instagram por você.</p>
-    <button class="btn pri bloco" onclick="paywall('Postar sozinho é do plano Viral 🔥','viral')">Ver plano Viral</button>
+    <button class="btn pri bloco" onclick="paywall('Postar sozinho é do plano Viral 🚀','viral')">Ver plano Viral</button>
     <button class="btn bloco" style="margin-top:8px" id="eu-mesmo">Baixar e postar eu mesmo</button>`, (el) => ($("#eu-mesmo", el).onclick = () => { fecharFolha(); location.hash = "#/video/" + ref; }));
-  location.hash = "#/postagens";
+  const [pg, ped] = await Promise.all([api("/api/postagens"), api("/api/pedidos/" + pid)]);
+  const c = ((ped.resultado || {}).cortes || []).find((x) => x.k === +k) || {};
+  const contas = pg.contas.filter((x) => x.estado === "conectada");
+  if (!contas.length) return abrirFolha(`<h2 style="margin-top:0">Conecta uma rede primeiro</h2><p class="sub">Conecta o TikTok ou o Instagram uma vez e depois é só tocar em Postar.</p>
+    <a class="btn pri bloco" href="#/postagens?aba=contas">Conectar conta</a>`, (el) => $$("a", el).forEach((x) => (x.onclick = fecharFolha)));
+  const leg = [c.legenda || c.titulo || "", (c.hashtags || []).join(" ")].filter(Boolean).join("\n\n");
+  const amanha19 = new Date(); amanha19.setHours(19, 0, 0, 0); if (amanha19 < new Date()) amanha19.setDate(amanha19.getDate() + 1);
+  const local = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  abrirFolha(`<h2 style="margin-top:0">Postar</h2>
+    <div class="opcoes" id="pc">${contas.map((x) => `<button class="opcao sel" data-c="${x.id}"><span class="ic">${x.rede === "tiktok" ? "🎵" : "📸"}</span><span><b>${esc(x.rotulo || pg.redes[x.rede].nome)}</b><small>${esc(pg.redes[x.rede].nome)}</small></span></button>`).join("")}</div>
+    <label class="campo" style="margin-top:14px">Legenda<textarea class="input" id="pl" rows="4">${esc(leg)}</textarea></label>
+    <div class="pilulas" id="pq"><button class="pilula sel" data-q="agora">Agora</button><button class="pilula" data-q="agendar">Agendar</button></div>
+    <label class="campo oculto" id="pqh" style="margin-top:12px">Quando<input class="input" type="datetime-local" id="pd" value="${local(amanha19)}"><span class="ajuda">Melhor horário: 19h</span></label>
+    <div class="erro-txt" id="pe"></div><button class="btn pri bloco" id="pir">Postar agora 🚀</button>`, (el) => {
+    let modo = "agora";
+    $$("#pc .opcao", el).forEach((b) => (b.onclick = () => b.classList.toggle("sel")));
+    $$("#pq .pilula", el).forEach((b) => (b.onclick = () => { modo = b.dataset.q; $$("#pq .pilula", el).forEach((x) => x.classList.toggle("sel", x === b)); $("#pqh", el).classList.toggle("oculto", modo === "agora"); $("#pir", el).textContent = modo === "agora" ? "Postar agora 🚀" : "Agendar 🕒"; }));
+    $("#pir", el).onclick = async () => {
+      const ids = $$("#pc .sel", el).map((b) => +b.dataset.c);
+      const quando = modo === "agora" ? 0 : new Date($("#pd", el).value).getTime() / 1000;
+      try { await api("/api/posts", { json: { pedido: pid, k: +k, contas: ids, legenda: $("#pl", el).value, quando } }); fecharFolha(); toast(modo === "agora" ? "Postando… te aviso quando sair ✓" : "Agendado ✓"); location.hash = "#/postagens"; }
+      catch (e) { $("#pe", el).textContent = e.message; }
+    };
+  });
 }
 function festa() {
   const f = document.createElement("div"); f.className = "festa";
@@ -561,15 +585,105 @@ async function telaEditar() {
 }
 
 // ---------------------------------------------------------------- postagens
+let pollLogin = null;
 async function telaPostagens() {
-  const p = await api("/api/postagens");
-  tela.innerHTML = `<h1>Postagens 📅</h1><div class="pilulas" style="margin-bottom:16px"><button class="pilula sel">Calendário</button><button class="pilula">Contas</button><button class="pilula">Histórico</button></div>
-    ${p.pode_postar ? `<div class="card"><h2 style="margin-top:0">Contas conectadas</h2>
-      <div class="opcao" style="margin-bottom:8px"><span class="ic">🎵</span><span><b>TikTok</b><small>Conecte pelo QR code</small></span><a class="btn peq pri" style="margin-left:auto" href="${esc(p.posta_url)}" target="_blank" rel="noopener">Conectar</a></div>
-      <div class="opcao"><span class="ic">📸</span><span><b>Instagram</b><small>Usuário e senha, passo a passo do código</small></span><a class="btn peq pri" style="margin-left:auto" href="${esc(p.posta_url)}" target="_blank" rel="noopener">Conectar</a></div></div>
-      <div class="vazio"><div class="ic">🗓</div>Nada agendado ainda.<br>Abre um vídeo pronto e toca em <b>Postar</b>.</div>`
-      : `<div class="vazio"><div class="ic">🚀</div><b>Postar sozinho é do plano Viral</b><br>A gente posta e agenda no TikTok e no Instagram por você, no melhor horário.<br>
-      <button class="btn pri" style="margin-top:14px" onclick="paywall('Postar sozinho é do plano Viral 🔥','viral')">Ver plano Viral</button><br><span class="ajuda">Enquanto isso: baixe o vídeo e poste você mesmo.</span></div>`}`;
+  const q = new URLSearchParams((location.hash.split("?")[1]) || "");
+  let aba = q.get("aba") || "agenda";
+  const d = await api("/api/postagens");
+  const ESTADO = { agendado: "🕒 Agendado", publicando: "⏳ Postando", publicado: "✓ Publicado", falhou: "⚠ Não saiu" };
+  const desenhar = () => {
+    tela.innerHTML = `<h1>Postagens 📅</h1><div class="pilulas" style="margin-bottom:16px">${[["agenda", "Agenda"], ["contas", "Contas"], ["cacador", "🎯 Caçador"]]
+      .map(([c, n]) => `<button class="pilula ${aba === c ? "sel" : ""}" data-aba="${c}">${n}</button>`).join("")}</div><div id="corpo"></div>`;
+    $$("[data-aba]").forEach((b) => (b.onclick = () => { aba = b.dataset.aba; desenhar(); }));
+    const corpo = $("#corpo");
+    if (aba === "agenda") {
+      corpo.innerHTML = !d.pode_postar ? semPlano() : d.posts.length ? d.posts.map((p) => `<div class="card" style="display:flex;gap:12px;margin-bottom:10px;align-items:center">
+        ${p.capa_url ? `<img src="${p.capa_url}" style="width:54px;height:96px;object-fit:cover;border-radius:8px">` : ""}
+        <div style="flex:1;min-width:0"><b>${ESTADO[p.estado] || p.estado}</b> · ${p.rede === "tiktok" ? "🎵 TikTok" : "📸 Instagram"}${p.origem === "cacador" ? " · 🎯 Caçador" : ""}
+        <div class="ajuda">${new Date(p.quando * 1000).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}${p.erro ? " · " + esc(p.erro) : ""}</div>
+        <div class="ajuda" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.legenda)}</div>
+        ${p.link ? `<a href="${esc(p.link)}" target="_blank" rel="noopener">Ver post</a>` : ""}</div>
+        ${p.estado === "agendado" ? `<button class="btn peq" data-cancelar="${p.id}">Cancelar</button>` : p.estado === "falhou" ? `<button class="btn peq pri" data-tentar="${p.id}">Tentar de novo</button>` : ""}</div>`).join("")
+        : `<div class="vazio"><div class="ic">🗓</div>Nada agendado ainda.<br>Abre um vídeo pronto e toca em <b>Postar</b>, ou liga o <b>Caçador</b> pra postar sozinho.</div>`;
+      $$("[data-cancelar]").forEach((b) => (b.onclick = async () => { await api(`/api/posts/${b.dataset.cancelar}/cancelar`, { method: "POST" }); rotear(); }));
+      $$("[data-tentar]").forEach((b) => (b.onclick = async () => { await api(`/api/posts/${b.dataset.tentar}/tentar`, { method: "POST" }); rotear(); }));
+    } else if (aba === "contas") {
+      corpo.innerHTML = !d.pode_postar ? semPlano() : `<div class="opcoes">${d.contas.map((k) => `<div class="opcao"><span class="ic">${k.rede === "tiktok" ? "🎵" : "📸"}</span>
+          <span><b>${esc(k.rotulo || d.redes[k.rede].nome)}</b><small>${{ conectada: "Conectado ✓", caiu: "Precisa reconectar ⚠", conectando: "Conectando…" }[k.estado] || k.estado}</small></span>
+          <button class="btn peq" style="margin-left:auto" data-desc="${k.id}">Desconectar</button></div>`).join("")}</div>
+        <div class="grupo" style="margin-top:14px"><button class="btn pri" style="flex:1" data-con="tiktok">🎵 Conectar TikTok</button><button class="btn pri" style="flex:1" data-con="instagram">📸 Conectar Instagram</button></div>
+        <p class="ajuda" style="margin-top:10px">A conexão fica guardada cifrada. Sua senha não fica salva.</p>`;
+      $$("[data-desc]").forEach((b) => (b.onclick = async () => { if (!confirm("Desconectar? Os posts agendados dessa conta serão cancelados.")) return; await api("/api/contas/" + b.dataset.desc, { method: "DELETE" }); rotear(); }));
+      $$("[data-con]").forEach((b) => (b.onclick = () => conectarConta(b.dataset.con, d.redes[b.dataset.con])));
+    } else {
+      const c = d.cacador;
+      corpo.innerHTML = `<div class="card"><h2 style="margin-top:0">🎯 Caçador: a IA busca vídeo sozinha</h2>
+        <p class="sub">Todo dia, no horário que você escolher, a IA procura os vídeos mais vistos da semana sobre os seus temas, corta os melhores momentos${d.pode_postar ? " e, se você quiser, posta sozinha 1 por dia em cada rede" : ""}. Nunca repete vídeo.</p>
+        ${!c.pode ? '<div class="dica" style="margin-bottom:12px">🔒 <div>O Caçador é do plano <b>Piloto Automático</b>.</div></div>' : ""}
+        <label class="campo">Temas (separe por vírgula)<input class="input" id="ct" value="${esc((c.temas || []).join(", "))}" placeholder="ex.: gta rp, podcast de humor, futebol"></label>
+        <div class="grupo"><label class="campo" style="flex:1">Horário da busca<input class="input" type="time" id="ch" value="${esc(c.hora)}"></label>
+        <label class="campo" style="flex:1">Vídeos por dia<select class="input" id="cv">${[1, 2, 3, 4, 5].map((n) => `<option ${n === c.videos_dia ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>
+        <div class="grupo"><label class="campo" style="flex:1">Cortes por vídeo<select class="input" id="cc">${[1, 2, 3, 4, 5].map((n) => `<option ${n === c.cortes_video ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+        <label class="campo" style="flex:1">Postar às<input class="input" type="time" id="chp" value="${esc(c.hora_post)}"></label></div>
+        <label class="check"><input type="checkbox" id="cp" ${c.postar ? "checked" : ""}> Postar sozinho nas minhas redes conectadas (1 por dia em cada)</label>
+        <label class="check"><input type="checkbox" id="ca" ${c.ativo ? "checked" : ""}> Caçador ligado (roda todo dia no horário)</label>
+        <div class="erro-txt" id="ce"></div>
+        <div class="grupo"><button class="btn pri" style="flex:1" id="csalvar">Salvar</button><button class="btn" style="flex:1" id="crodar">Buscar agora</button></div></div>
+        <h2>Últimas buscas</h2>${(c.rodadas || []).length ? c.rodadas.map((r) => `<div class="card" style="margin-bottom:8px"><b>${new Date(r.quando * 1000).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</b>
+          <div class="ajuda">${r.erro ? "⚠ " + esc(r.erro) : `Achou ${r.achados} vídeo(s), mandou cortar ${r.pedidos.length}`}</div>
+          ${(r.pedidos || []).map((p) => `<a href="#/pedido/${p.id}" style="display:block;margin-top:6px">✂️ ${esc(p.titulo)} <span class="ajuda">· ${esc(p.canal)} · ${(p.views / 1000).toFixed(0)} mil views</span></a>`).join("")}</div>`).join("")
+          : '<p class="ajuda">Ainda não rodou. Salva os temas e toca em "Buscar agora" pra ver funcionando.</p>'}`;
+      const corpoCfg = () => ({ temas: $("#ct").value.split(",").map((x) => x.trim()).filter(Boolean), hora: $("#ch").value, videos_dia: +$("#cv").value,
+        cortes_video: +$("#cc").value, hora_post: $("#chp").value, postar: $("#cp").checked, ativo: $("#ca").checked });
+      $("#csalvar").onclick = async () => { try { await api("/api/cacador", { json: corpoCfg() }); toast("Caçador salvo ✓"); rotear(); } catch (e) { $("#ce").textContent = e.message; } };
+      $("#crodar").onclick = async () => {
+        const b = $("#crodar"); b.disabled = true; b.textContent = "Buscando…";
+        try { await api("/api/cacador", { json: { ...corpoCfg(), ativo: $("#ca").checked } }); const r = await api("/api/cacador/rodar", { method: "POST" });
+          toast(r.erro ? r.erro : `Achei ${r.achados} vídeos e mandei cortar ${r.pedidos.length} 🎯`, !!r.erro); rotear(); }
+        catch (e) { toast(e.message, true); b.disabled = false; b.textContent = "Buscar agora"; }
+      };
+    }
+  };
+  desenhar();
+}
+const semPlano = () => `<div class="vazio"><div class="ic">🚀</div><b>Postar sozinho é do plano Viral</b><br>A gente posta e agenda no TikTok e no Instagram por você, no melhor horário.<br>
+  <button class="btn pri" style="margin-top:14px" onclick="paywall('Postar sozinho é do plano Viral 🚀','viral')">Ver plano Viral</button><br><span class="ajuda">Enquanto isso: baixe o vídeo e poste você mesmo.</span></div>`;
+
+function conectarConta(rede, R) {
+  const qr = R.login === "qr";
+  abrirFolha(`<h2 style="margin-top:0">Conectar ${esc(R.nome)}</h2><div id="lc">
+    <p class="sub">${qr ? "Vamos mostrar um QR pra você ler com o app do TikTok." : "Digitado só aqui: a senha vai direto pra rede e não fica guardada."}</p>
+    <form id="lf">${qr ? "" : `<label class="campo">Usuário, e-mail ou telefone<input class="input" id="lu" autocomplete="off"></label>
+    <label class="campo">Senha<input class="input" id="ls" type="password" autocomplete="off"></label>`}
+    <label class="check"><input type="checkbox" id="la"> Entendo que a publicação não usa a API oficial e que a rede pode pedir pra eu entrar de novo.</label>
+    <div class="erro-txt" id="le"></div><button class="btn pri bloco">Continuar</button></form></div>`, (el) => {
+    $("#lf", el).onsubmit = async (e) => {
+      e.preventDefault();
+      if (!$("#la", el).checked) return ($("#le", el).textContent = "Marque o aceite pra continuar.");
+      e.target.querySelector("button").disabled = true; $("#le", el).textContent = "Entrando na rede… pode levar até um minuto.";
+      try { passoLogin(await api("/api/contas", { json: { rede, aceite: true, usuario: $("#lu", el)?.value || "", senha: $("#ls", el)?.value || "" } })); }
+      catch (er) { $("#le", el).textContent = er.message; e.target.querySelector("button").disabled = false; }
+    };
+  });
+}
+function passoLogin(r) {
+  clearTimeout(pollLogin);
+  const p = r.passo || {}, c = $("#lc"), id = r.conta;
+  if (!c) return;
+  const responder = async (valor) => { try { passoLogin(await api(`/api/contas/${id}/login`, { json: { valor } })); } catch (er) { toast(er.message, true); } };
+  const esperar = (s) => (pollLogin = setTimeout(async () => { try { passoLogin(await api(`/api/contas/${id}/login`)); } catch {} }, Math.max(2, s || 3) * 1000));
+  if (p.tipo === "conectado") { c.innerHTML = `<h3>Conectada ✓</h3><p class="sub">Agora é só tocar em Postar nos seus vídeos.</p><button class="btn pri bloco" id="lok">Pronto</button>`; $("#lok").onclick = () => { fecharFolha(); rotear(); }; return; }
+  if (p.tipo === "erro") { c.innerHTML = `<h3>Não conectou</h3><p class="sub">${esc(p.mensagem || "Tenta de novo.")}</p><button class="btn bloco" id="lok">Fechar</button>`; $("#lok").onclick = () => { fecharFolha(); rotear(); }; return; }
+  if (p.tipo === "qr") { c.innerHTML = `<h3>Lê o QR com o app do TikTok</h3><p class="sub">${esc(p.mensagem || "")}</p><img src="${esc(p.imagem)}" alt="QR do TikTok" style="width:100%;max-width:280px;display:block;margin:12px auto;border-radius:12px;background:#fff">`; return esperar(p.espera_s); }
+  if (p.tipo === "aprovar_no_celular") { c.innerHTML = `<h3>Confirma no celular</h3><p class="sub">${esc(p.mensagem || "")}</p><p class="ajuda">Esta tela atualiza sozinha.</p>`; return esperar(p.espera_s); }
+  if (p.tipo === "escolha") { c.innerHTML = `<h3>Por onde receber o código?</h3><p class="sub">${esc(p.mensagem || "")}</p>${(p.opcoes || []).map((o) => `<button class="btn bloco" style="margin-top:8px" data-op="${esc(o)}">${esc(o)}</button>`).join("")}`; $$("[data-op]", c).forEach((b) => (b.onclick = () => responder(b.dataset.op))); return; }
+  if (p.tipo === "captcha") { c.innerHTML = `<h3>Verificação da rede</h3><p class="sub">${esc(p.mensagem || "")}</p><img src="${esc(p.imagem)}" alt="Verificação" id="cap" style="width:100%;border-radius:12px">`;
+    $("#cap").onclick = (e) => { const r2 = e.target.getBoundingClientRect(), k = e.target.naturalWidth / r2.width; responder(`${Math.round((e.clientX - r2.left) * k)},${Math.round((e.clientY - r2.top) * k)}`); }; return; }
+  if (p.tipo === "codigo_2fa" || p.tipo === "codigo_email") {
+    c.innerHTML = `<h3>${p.tipo === "codigo_2fa" ? "Código de verificação" : "Confirma que é você"}</h3><p class="sub">${esc(p.mensagem || "")}</p>
+      <form id="cf"><input class="input" id="ccod" inputmode="numeric" autocomplete="one-time-code"><button class="btn pri bloco" style="margin-top:12px">Continuar</button></form>${p.erro ? `<div class="erro-txt">${esc(p.mensagem || "")}</div>` : ""}`;
+    $("#cf").onsubmit = (e) => { e.preventDefault(); responder($("#ccod").value.trim()); }; return; }
+  c.innerHTML = `<h3>Entrando…</h3><p class="sub">Aguarda alguns segundos.</p>`; esperar(3);
 }
 
 // ---------------------------------------------------------------- perfil e estilo
