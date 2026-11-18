@@ -13,7 +13,7 @@
     $("#vpd-v").textContent = videos; $("#vw-v").textContent = views >= 1000 ? (views / 1000) + " mil" : views;
     const rpm = 2.5; // R$ por mil views qualificadas (vídeos de 1 min+), média aproximada
     const mes = videos * 30 * (views / 1000) * rpm;
-    $("#res").textContent = brl(mes).replace(",00", "");
+    $("#res").textContent = "R$ " + Math.round(mes).toLocaleString("pt-BR");
   };
   if (vpd) { vpd.oninput = vw.oninput = calc; calc(); }
   // vitrine pública (prova)

@@ -100,16 +100,17 @@ const ROTAS = [
 async function rotear() {
   clearInterval(sondagem); sondagem = null; fecharFolha();
   const h = location.hash || "#/";
-  const publica = h === "#/entrar";
-  $("#topo").classList.toggle("oculto", publica); $("#barra").classList.toggle("oculto", publica); $(".lateral").classList.toggle("oculto", publica);
-  $("#ajuda").classList.toggle("oculto", publica);
+  const publica = h === "#/entrar", foco = publica || h.startsWith("#/bemvindo");
+  $("#topo").classList.toggle("oculto", publica); $("#barra").classList.toggle("oculto", foco); $(".lateral").classList.toggle("oculto", foco);
+  $("#ajuda").classList.toggle("oculto", foco);
   if (!publica) {
     try { await conta(); } catch { return; }
     if (!CONTA.onboarding && !h.startsWith("#/bemvindo") && !h.startsWith("#/pedido")) { location.hash = "#/bemvindo/1"; return; }
   }
   const r = h.split("?")[0];
   $$("[data-r]").forEach((a) => a.classList.toggle("ativo", (a.dataset.r === "inicio" && r === "#/") || r.startsWith("#/" + a.dataset.r)));
-  for (const [rx, f] of ROTAS) { const m = r.match(rx); if (m) { tela.innerHTML = ""; window.scrollTo(0, 0); try { await f(...m.slice(1)); } catch (e) { toast(e.message, true); } return; } }
+  for (const [rx, f] of ROTAS) { const m = r.match(rx); if (m) { tela.innerHTML = ""; window.scrollTo(0, 0); try { await f(...m.slice(1)); } catch (e) { toast(e.message, true); }
+    $("#ajuda").classList.toggle("oculto", foco || !!$(".acao-fixa")); return; } }
   location.hash = "#/";
 }
 window.addEventListener("hashchange", rotear);
@@ -117,12 +118,12 @@ window.addEventListener("hashchange", rotear);
 // ---------------------------------------------------------------- entrar / criar conta
 function telaEntrar() {
   const q = new URLSearchParams(location.search);
-  let aba = q.get("entrar") ? "entrar" : "criar";
+  let aba = (q.get("entrar") || (() => { try { return sessionStorage.getItem("aba"); } catch { return ""; } })() === "entrar") ? "entrar" : "criar"; try { sessionStorage.removeItem("aba"); } catch {}
   const desenhar = () => {
-    tela.innerHTML = `<div class="entrar"><div class="logo"><span class="gota"></span>Viraliz<b>aí</b></div>
+    tela.innerHTML = `<div class="entrar"><div class="logo"><span class="gota"></span><span>Viraliz<b>aí</b></span></div>
       <div class="abas"><button data-a="criar" class="${aba === "criar" ? "sel" : ""}">Criar conta</button><button data-a="entrar" class="${aba === "entrar" ? "sel" : ""}">Entrar</button></div>
       ${CONTA_GOOGLE ? '<a class="btn bloco" href="/api/google"><b style="color:#4285f4">G</b> Continuar com Google</a><div class="ou">ou</div>' : ""}
-      <form id="f">${aba === "criar" ? `
+      <form id="f" novalidate>${aba === "criar" ? `
         <label class="campo">Seu nome<input class="input" name="nome" autocomplete="given-name" required></label>
         <label class="campo">E-mail<input class="input" name="email" type="email" autocomplete="email" required></label>
         <label class="campo">Senha<div class="olho"><input class="input" name="senha" type="password" minlength="8" autocomplete="new-password" required><button type="button" aria-label="Mostrar senha">👁</button></div><span class="ajuda">Pelo menos 8 letras ou números.</span></label>
@@ -140,6 +141,9 @@ function telaEntrar() {
     $("#f").onsubmit = async (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(e.target)); d.aceite = !!d.aceite;
+      const falta = aba === "criar" ? (!d.nome ? "Como você se chama?" : !/^\S+@\S+\.\S+$/.test(d.email || "") ? "Esse e-mail não parece certo." : (d.senha || "").length < 8 ? "A senha precisa de pelo menos 8 letras ou números." : !d.aceite ? "Pra criar a conta, aceite os termos." : "")
+        : (!d.email || !d.senha ? "Preencha e-mail e senha." : "");
+      if (falta) { $("#err").textContent = falta; return; }
       const btn = $("#f .btn.pri"); btn.disabled = true; $("#err").textContent = "";
       try {
         await api(aba === "criar" ? "/api/cadastro" : "/api/entrar/senha", { json: d });
@@ -213,7 +217,7 @@ async function telaBemvindo(passo = "1") {
 
 // ---------------------------------------------------------------- início
 async function telaInicio() {
-  const c = CONTA;
+  const c = await conta(true);
   const meta = c.plano === "teste" ? null : Math.min(c.uso.cortes, 10);
   tela.innerHTML = `<h1>Fala, ${esc((c.nome || "criador").split(" ")[0])}! 👊</h1>
     ${c.plano === "teste" ? `<div class="dica"><span style="font-size:24px">🎁</span><div><b>${c.teste_usado ? "Sua prévia grátis já foi." : "Você tem 1 corte grátis pra testar."}</b><br>
@@ -604,5 +608,9 @@ async function telaEstilo() {
   };
 }
 
-window.paywall = paywall; window.folhaMoedas = folhaMoedas;
+window.paywall = paywall; window.folhaMoedas = folhaMoedas; window.fecharFolha = fecharFolha;
+if (location.pathname === "/entrar" && !location.hash) {
+  try { if (location.search.includes("entrar=1")) sessionStorage.setItem("aba", "entrar"); } catch {}
+  history.replaceState(null, "", "/app#/entrar");
+}
 rotear();
