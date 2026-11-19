@@ -706,7 +706,11 @@ function passoLogin(r) {
   clearTimeout(pollLogin);
   const p = r.passo || {}, c = $("#lc"), id = r.conta;
   if (!c) return;
-  const responder = async (valor) => { try { passoLogin(await api(`/api/contas/${id}/login`, { json: { valor } })); } catch (er) { toast(er.message, true); } };
+  const responder = async (valor) => {
+    // retorno imediato do toque: a rede leva alguns segundos para reagir
+    c.innerHTML = `<div class="carregando"><span class="giro"></span><h3>Enviando para a rede…</h3><p class="sub">Aguarda uns segundos. Esta tela atualiza sozinha.</p></div>`;
+    try { passoLogin(await api(`/api/contas/${id}/login`, { json: { valor } })); } catch (er) { toast(er.message, true); esperar(2); }
+  };
   const esperar = (s) => (pollLogin = setTimeout(async () => { try { passoLogin(await api(`/api/contas/${id}/login`)); } catch {} }, Math.max(2, s || 3) * 1000));
   if (p.tipo === "conectado") { c.innerHTML = `<h3>Conectada <u-i class=i-check></u-i></h3><p class="sub">Agora é só tocar em Postar nos seus vídeos.</p><button class="btn pri bloco" id="lok">Pronto</button>`; $("#lok").onclick = () => { fecharFolha(); rotear(); }; return; }
   if (p.tipo === "erro") { c.innerHTML = `<h3>Não conectou</h3><p class="sub">${esc(p.mensagem || "Tenta de novo.")}</p><button class="btn bloco" id="lok">Fechar</button>`; $("#lok").onclick = () => { fecharFolha(); rotear(); }; return; }
@@ -719,7 +723,7 @@ function passoLogin(r) {
     c.innerHTML = `<h3>${p.tipo === "codigo_2fa" ? "Código de verificação" : "Confirma que é você"}</h3><p class="sub">${esc(p.mensagem || "")}</p>
       <form id="cf"><input class="input" id="ccod" inputmode="numeric" autocomplete="one-time-code"><button class="btn pri bloco" style="margin-top:12px">Continuar</button></form>${p.erro ? `<div class="erro-txt">${esc(p.mensagem || "")}</div>` : ""}`;
     $("#cf").onsubmit = (e) => { e.preventDefault(); responder($("#ccod").value.trim()); }; return; }
-  c.innerHTML = `<h3>Entrando…</h3><p class="sub">Aguarda alguns segundos.</p>`; esperar(3);
+  c.innerHTML = `<div class="carregando"><span class="giro"></span><h3>Entrando na rede…</h3><p class="sub">Pode levar até um minuto. Esta tela atualiza sozinha.</p></div>`; esperar(3);
 }
 
 // ---------------------------------------------------------------- perfil e estilo

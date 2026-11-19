@@ -294,3 +294,6 @@ textarea.input{padding:14px 16px;min-height:110px;resize:vertical}
 .esq-linha{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .esq-linha .esqueleto{aspect-ratio:9/16}
 @media (min-width:980px){.rolar .vcard{width:184px}}
+/* carregando (passos de login nas redes) */
+.carregando{display:grid;justify-items:center;text-align:center;gap:6px;padding:16px 0}
+.giro{width:44px;height:44px;border-radius:50%;border:4px solid var(--linha);border-top-color:var(--neon);animation:gira .9s linear infinite;margin-bottom:8px}
