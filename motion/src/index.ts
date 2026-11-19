@@ -1,6 +1,7 @@
 import React from "react";
 import { Composition, registerRoot } from "remotion";
 import { Video } from "./Video";
+import { Cinema, type CinemaProps } from "./Cinema";
 import type { Props } from "./tipos";
 
 const EXEMPLO: Props = {
@@ -10,7 +11,20 @@ const EXEMPLO: Props = {
     { n: 3, titulo: "Vice City", t: 9, icone: "🌴" }, { n: 2, titulo: "Dois protagonistas", t: 12, icone: "👫" }, { n: 1, titulo: "Online novo", t: 15, icone: "🔥" }],
 };
 
+const CINEMA: CinemaProps = { duracao: 21, palavras: [], sfx: [] };
+
 const Raiz: React.FC = () =>
+  React.createElement(React.Fragment, null,
+  React.createElement(Composition<CinemaProps, any>, {
+    id: "Cinema",
+    component: Cinema as any,
+    width: 720,
+    height: 1280,
+    fps: 30,
+    durationInFrames: 630,
+    defaultProps: CINEMA,
+    calculateMetadata: ({ props }: { props: CinemaProps }) => ({ durationInFrames: Math.max(60, Math.round(props.duracao * 30)) }),
+  }),
   React.createElement(Composition<Props, any>, {
     id: "Viral",
     component: Video as any,
@@ -20,6 +34,6 @@ const Raiz: React.FC = () =>
     durationInFrames: 600,
     defaultProps: EXEMPLO,
     calculateMetadata: ({ props }: { props: Props }) => ({ durationInFrames: Math.max(60, Math.round((props.duracao + 2.5) * 30)) }),
-  });
+  }));
 
 registerRoot(Raiz);

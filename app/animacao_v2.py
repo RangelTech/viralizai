@@ -41,6 +41,7 @@ VOZES = {c: v for c, v, _, _ in VOZES_LISTA}
 VOZES_PUBLICAS = [{"codigo": c, "nome": n, "descricao": d, "amostra": f"/s/vozes/{v}.mp3"} for c, v, n, d in VOZES_LISTA] + \
     [{"codigo": "sem", "nome": "Sem voz", "descricao": "só texto na tela", "amostra": None}]
 FORMATOS = {
+    "desenho": ("Desenho animado", "bonequinhos animados vivendo a história: terror, comédia, curiosidade"),
     "historia": ("História narrada", "voz conta uma história com legenda gigante e fundo hipnótico"),
     "conversa": ("Conversa de WhatsApp", "conversa aparecendo bolha a bolha, com reviravolta"),
     "top5": ("Top 5", "contagem regressiva até o nº 1"),
@@ -105,14 +106,17 @@ def escolher_formato(ideia: str) -> str:
     for f, chaves in (("top5", ("top", "ranking", "melhores", "piores", "5 ")), ("quiz", ("quiz", "adivinh", "pergunta")),
                       ("versus", (" vs ", " x ", "contra", "versus", "melhor:")), ("conversa", ("conversa", "whats", "mensagem")),
                       ("noticia", ("notícia", "noticia", "urgente", "vazou", "lançamento")), ("impacto", ("motiva", "frase", "mentalidade")),
-                      ("historia", ("história", "historia", "aconteceu", "conto", "terror"))):
+                      ("desenho", ("história", "historia", "aconteceu", "conto", "terror", "desenho", "animação", "personagem"))):
         if any(c in t for c in chaves):
             return f
-    return "curiosidade"
+    return "desenho"
 
 
 def roteiro(ideia: str, formato: str, segundos: int, cfg) -> dict:
     formato = formato if formato in FORMATOS else escolher_formato(ideia)
+    if formato == "desenho":  # animação v3: diretor (Claude/GPT) planeja, Qwen desenha em código (app/cinema.py)
+        from app import cinema
+        return cinema.plano(ideia, segundos, cfg)
     segundos = max(20, min(90, int(segundos or 61)))
     extra, esquema = EXTRA[formato]
     limite = int(segundos * 2.6)  # palavras que cabem no tempo (voz a +12%)
@@ -150,6 +154,9 @@ def _txt(v, n: int = 300) -> str:
 def validar(j: dict) -> dict:
     """Esquema fechado: o que o molde não conhece é jogado fora; o que falta ganha valor padrão.
     Idempotente: aceita tanto a resposta crua do diretor quanto um roteiro já validado (o app manda de volta o que mostrou)."""
+    if (j.get("formato") or "") == "desenho":
+        from app import cinema
+        return cinema.validar_plano(j)
     j = dict(j)
     if isinstance(j.get("quiz"), dict):
         q = j["quiz"]
@@ -432,6 +439,9 @@ def renderizar(p: dict, pasta: Path, destino: Path, avisar=None) -> None:
 
 
 def fazer(entrada: dict, pasta: Path, cfg, avisar) -> dict:
+    if (entrada.get("roteiro") or {}).get("formato") == "desenho":
+        from app import cinema
+        return cinema.fazer(entrada, pasta, cfg, avisar)
     pasta.mkdir(parents=True, exist_ok=True)
     r = validar(entrada["roteiro"])
     avisar("Gravando a narração", 0.15)
