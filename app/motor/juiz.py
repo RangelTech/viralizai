@@ -24,7 +24,7 @@ Dê a cada candidato:
 - "sozinho": true se dá para entender sem ver o resto do vídeo.
 - "ajuste_inicio" e "ajuste_fim": segundos para mexer nas bordas (negativo = antes), entre -10 e 10; 0 se estiver bom.
 - "gancho": texto do topo do vídeo, até 8 palavras, MAIÚSCULAS, que faça a pessoa parar de rolar (sem mentir sobre o trecho).
-- "titulo": até 60 letras.
+- "titulo": até 60 letras. Sem emoji em gancho, titulo e porque.
 - "legenda": legenda do post, até 150 letras, com chamada para comentar e crédito ao canal original ({canal}).
 - "hashtags": 4.
 - "assunto": 2 a 4 palavras do assunto (para não escolher dois cortes iguais).

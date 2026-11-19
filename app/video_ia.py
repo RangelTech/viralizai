@@ -21,13 +21,13 @@ SEGUNDOS = 10
 PREVIAS_DIA = 25
 
 MOLDES = [
-    {"codigo": "bicho", "nome": "🐶 Bicho dançando", "exemplo": "um gato laranja dançando funk numa laje no Rio", "dica": "bicho + dança + lugar"},
-    {"codigo": "cantando", "nome": "🐟 Objeto/bicho cantando", "exemplo": "uma coxinha cantando sertanejo num palco com luzes", "dica": "quem canta + estilo + palco"},
-    {"codigo": "pegadinha", "nome": "😂 Pegadinha", "exemplo": "um cachorro tomando susto com um pepino na cozinha", "dica": "quem + susto + com o quê"},
-    {"codigo": "asmr", "nome": "🔊 ASMR", "exemplo": "faca cortando uma fruta de vidro colorida em câmera lenta", "dica": "o que corta/derrete + material"},
-    {"codigo": "heroi", "nome": "🦸 Herói/vilão", "exemplo": "um capivara super-herói voando sobre São Paulo", "dica": "personagem + poder + cidade"},
-    {"codigo": "bebe", "nome": "👶 Bebê falando", "exemplo": "um bebê de terno dando bronca como chefe numa reunião", "dica": "bebê + profissão + situação"},
-    {"codigo": "livre", "nome": "✨ Livre", "exemplo": "um carro de GTA voando entre prédios ao pôr do sol", "dica": "descreva a cena"},
+    {"codigo": "bicho", "nome": "Bicho dançando", "exemplo": "um gato laranja dançando funk numa laje no Rio", "dica": "bicho + dança + lugar"},
+    {"codigo": "cantando", "nome": "Objeto/bicho cantando", "exemplo": "uma coxinha cantando sertanejo num palco com luzes", "dica": "quem canta + estilo + palco"},
+    {"codigo": "pegadinha", "nome": "Pegadinha", "exemplo": "um cachorro tomando susto com um pepino na cozinha", "dica": "quem + susto + com o quê"},
+    {"codigo": "asmr", "nome": "ASMR", "exemplo": "faca cortando uma fruta de vidro colorida em câmera lenta", "dica": "o que corta/derrete + material"},
+    {"codigo": "heroi", "nome": "Herói/vilão", "exemplo": "um capivara super-herói voando sobre São Paulo", "dica": "personagem + poder + cidade"},
+    {"codigo": "bebe", "nome": "Bebê falando", "exemplo": "um bebê de terno dando bronca como chefe numa reunião", "dica": "bebê + profissão + situação"},
+    {"codigo": "livre", "nome": "Livre", "exemplo": "um carro de GTA voando entre prédios ao pôr do sol", "dica": "descreva a cena"},
 ]
 
 DIRETOR = """Reescreva o pedido do cliente como prompt para um modelo de VÍDEO de IA (10 segundos, vertical 9:16), em INGLÊS.

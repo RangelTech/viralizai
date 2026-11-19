@@ -469,7 +469,8 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
 
     # ------------------------------------------------ vitrine (Prontos pra postar)
     def base_publica(b: dict) -> dict:
-        return {"id": b["id"], "nota": b["nota"], "gancho": b["gancho"], "titulo": b["titulo"], "porque": b["porque"], "tema": b["tema"],
+        se = lambda x: re.sub("[🀀-🫿☀-➿⭐✅️]", "", x or "").strip()  # telas sem emoji
+        return {"id": b["id"], "nota": b["nota"], "gancho": se(b["gancho"]), "titulo": se(b["titulo"]), "porque": se(b["porque"]), "tema": b["tema"],
                 "duracao": round(b["fim"] - b["inicio"], 1), "canal": b.get("canal") or "", "usos": b["usos"],
                 "capa_url": f"/api/vitrine/{b['id']}/capa.jpg" if b.get("capa") else None,
                 "previa_url": f"/api/vitrine/{b['id']}/previa.mp4" if b.get("previa") else None, "criado": b["criado"]}
@@ -496,7 +497,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         if tema or q:
             return {"itens": vitrine_sql(tema, q[:40], 60, "novos" if tema == "novos" else "nota")}
         temas = [r["tema"] for r in db.todos("SELECT tema, COUNT(*) n FROM cortes_base WHERE publico=1 AND oculto=0 AND previa IS NOT NULL GROUP BY tema ORDER BY n DESC")]
-        return {"secoes": [{"tema": "alta", "titulo": "🔥 Em alta agora", "itens": vitrine_sql("", "", 12)}] +
+        return {"secoes": [{"tema": "alta", "titulo": "Em alta agora", "itens": vitrine_sql("", "", 12)}] +
                           [{"tema": t, "titulo": NOMES_TEMA.get(t, t.title()), "itens": vitrine_sql(t, "", 12)} for t in temas if t]}
 
     @app.get("/api/publico/vitrine")
@@ -932,6 +933,6 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
     return app
 
 
-NOMES_TEMA = {"gta": "🎮 GTA", "futebol": "⚽ Futebol", "podcast": "🎙 Podcasts", "humor": "😂 Humor", "games": "🕹 Games", "outros": "✨ Variados"}
+NOMES_TEMA = {"gta": "GTA", "futebol": "Futebol", "podcast": "Podcasts", "humor": "Humor", "games": "Games", "outros": "Variados"}
 
 app = criar_app() if os.environ.get("VIRALIZAI_SEM_APP") != "1" and os.environ.get("CORTAI_SEM_APP") != "1" else None
