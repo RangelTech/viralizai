@@ -928,6 +928,14 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
     def pagina_admin():
         return FileResponse(ESTATICO / "admin.html")
 
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon():
+        return FileResponse(ESTATICO / "icone" / "favicon.ico", headers={"Cache-Control": "public, max-age=604800"})
+
+    @app.get("/apple-touch-icon.png", include_in_schema=False)
+    def icone_apple():
+        return FileResponse(ESTATICO / "icone" / "apple-touch-icon.png", headers={"Cache-Control": "public, max-age=604800"})
+
     from fastapi.staticfiles import StaticFiles
     app.mount("/s", StaticFiles(directory=ESTATICO), name="estatico")
     return app
