@@ -72,8 +72,12 @@ def para_pt(palavras: list[dict], lingua: str | None, cfg, cache: Path | None = 
     if trad is None:
         try:
             trad = []
-            for i in range(0, len(textos), 40):  # lotes de 40 frases
-                trad += _pedir(textos[i:i + 40], lingua or "en", cfg)
+            for i in range(0, len(textos), 15):  # lotes de 15 frases; lote que volta errado é traduzido frase a frase
+                lote = textos[i:i + 15]
+                try:
+                    trad += _pedir(lote, lingua or "en", cfg)
+                except Exception:  # noqa: BLE001
+                    trad += [(_pedir([x], lingua or "en", cfg) or [x])[0] for x in lote]
             if arq:
                 arq.parent.mkdir(parents=True, exist_ok=True)
                 arq.write_text(json.dumps(trad, ensure_ascii=False), encoding="utf-8")
