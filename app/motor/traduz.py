@@ -40,10 +40,10 @@ def _pedir(textos: list[str], lingua: str, cfg) -> list[str]:
     with httpx.Client(timeout=180) as c:
         for _ in range(2):
             r = c.post(cfg.llm_base + "/chat/completions", headers={"Authorization": f"Bearer {cfg.llm_key}"},
-                       json={"model": cfg.llm_modelo, "temperature": 0.2, "max_tokens": 4000,
+                       json={"model": cfg.llm_modelo, "temperature": 0.2, "max_tokens": 4000, "chat_template_kwargs": {"enable_thinking": False},
                              "messages": [{"role": "user", "content": prompt}]})
             r.raise_for_status()
-            txt = r.json()["choices"][0]["message"]["content"]
+            txt = r.json()["choices"][0]["message"].get("content") or ""
             txt = re.sub(r"<think>.*?</think>", "", txt, flags=re.S)
             m = re.search(r"\{.*\}", txt, re.S)
             try:
