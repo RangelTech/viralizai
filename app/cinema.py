@@ -78,6 +78,7 @@ dados. Use só funções do kit e canvas 2D. Determinístico (sem Math.random). 
 === PLANO DO DIRETOR (escreva estas cenas) ===
 {plano}
 
+Seja ENXUTO: cada cena com 6 a 18 linhas (o arquivo inteiro precisa caber na resposta).
 Regras: a ação de cada cena acontece no começo dela (lt pequeno) e casa com a fala; atores grandes e visíveis; nada de texto solto;
 desenhe o "desenho_extra" de cada cena com formas simples (elipses, círculos, path) e contorno INK; imagens reais estão em IMG.img1, IMG.img2...
 Responda só o código."""
@@ -175,6 +176,13 @@ def _limpa_codigo(txt: str) -> str:
     return txt[i:].strip() if i >= 0 else txt.strip()
 
 
+def _limpa_continuacao(txt: str) -> str:
+    m = re.search(r"```(?:js|javascript)?\s*(.*?)```", txt, re.S)
+    txt = m.group(1) if m else txt
+    i = txt.find("SHOTS.push(")
+    return txt[i:].strip() if i >= 0 else ""
+
+
 def _plano_para_llm(p: dict, tempos: list[tuple[float, float]]) -> str:
     linhas = []
     for i, (c, (a, b)) in enumerate(zip(p["cenas"], tempos)):
@@ -190,7 +198,15 @@ def gerar_shots(p: dict, tempos: list[tuple[float, float]], pasta: Path, cfg, av
     conversa = prompt
     for tentativa in range(3):
         try:
-            cod = _limpa_codigo(_chat(cfg.llm_modelo, conversa, cfg, False, 9000, .4))
+            cod = _limpa_codigo(_chat(cfg.llm_modelo, conversa, cfg, False, 16000, .4))
+            if cod.count("SHOTS.push(") < len(tempos) or not cod.rstrip().endswith(("});", "}")):
+                # veio cortado (limite de tokens): pede só a continuação, a partir da última cena completa
+                ult = cod.rfind("SHOTS.push(")
+                base = cod[:ult] if ult > 0 else cod
+                feitas = base.count("SHOTS.push(")
+                pedido = (prompt + "\n\n=== VOCÊ JÁ ESCREVEU (não repita) ===\n" + base[-6000:] +
+                          f"\n\nContinue a partir da cena {feitas + 1} até a última. Responda só os SHOTS.push que faltam.")
+                cod = base + "\n" + _limpa_continuacao(_chat(cfg.llm_modelo, pedido, cfg, False, 12000, .4))
             cod = _ajusta_tempos(cod, tempos)
             v = validar_codigo(cod, pasta)
             if v.get("ok"):

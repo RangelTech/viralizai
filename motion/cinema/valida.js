@@ -48,6 +48,7 @@ try {
   }
   info = { dur: filme.DUR, planos: SHOTS.length };
 } catch (e) {
-  erros.push(String(e && e.stack ? e.stack.split('\n').slice(0, 2).join(' | ') : e));
+  const onde = e && e.stack ? (e.stack.split('\n').find((l) => /evalmachine/.test(l)) || '') : '';
+  erros.push(`${e && e.name ? e.name : 'Erro'}: ${e && e.message ? e.message : e}${onde ? ' (' + onde.trim().slice(0, 80) + ')' : ''}`);
 }
 console.log(JSON.stringify({ ok: !erros.length, erros, ...info }));
