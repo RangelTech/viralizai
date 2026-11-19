@@ -136,7 +136,34 @@ def base(s: dict, pasta_fonte: Path, corte: dict, cfg) -> dict:
         _render(arq, ini - desloc, fim - desloc, limpo, layout=corte.get("tipo") or "auto", rapido=True)
         subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "1.5", "-i", str(limpo), "-frames:v", "1", "-q:v", "4", "-vf", "scale=360:-2", str(capa)],
                        check=False)
-    return {"pasta": str(pc), "base": str(limpo), "capa": str(capa) if capa.exists() else None, "duracao": round(duracao(limpo), 1)}
+    previa = previa_vitrine(s, pasta_fonte, corte, cfg)
+    return {"pasta": str(pc), "base": str(limpo), "previa": str(previa) if previa else str(limpo),
+            "capa": str(capa) if capa.exists() else None, "duracao": round(duracao(limpo), 1)}
+
+
+def previa_vitrine(s: dict, pasta_fonte: Path, corte: dict, cfg, refazer: bool = False) -> Path | None:
+    """Prévia da vitrine com pós-produção (47e §1): legenda em português com karaokê, título grande em caixa, barra de progresso.
+    SEM @: o corte da vitrine é reaproveitado por vários clientes (o @ entra só na versão de cada um)."""
+    from app.motor import traduz
+    from app.motor.analise import palavras_do_trecho
+    ini, fim = corte["inicio"], corte["fim"]
+    pc = pasta_corte(pasta_fonte, ini, fim)
+    dest = pc / "previa.mp4"
+    if dest.exists() and not refazer:
+        return dest
+    try:
+        arq, desloc = garantir_trecho(s, pasta_fonte, ini, fim, cfg)
+        palavras = traduz.para_pt(palavras_do_trecho(s, ini, fim), s.get("lingua"), cfg, pasta_fonte)
+        a = pc / "previa.ass"
+        a.write_text(estilo.ass(palavras, fim - ini, corte.get("gancho") or "", "tiktok", "", estilo.COR_PADRAO, True), encoding="utf-8")
+        tmp = pc / "previa.tmp.mp4"
+        _render(arq, ini - desloc, fim - desloc, tmp, ass=a, layout=corte.get("tipo") or "auto", rapido=True)
+        tmp.replace(dest)
+        a.unlink(missing_ok=True)
+        return dest
+    except Exception as e:  # noqa: BLE001
+        log.warning("prévia da vitrine com legenda falhou (%s); fica a base limpa", e)
+        return None
 
 
 def variacao(semente: str, livre: bool) -> dict:
@@ -155,7 +182,8 @@ def personalizado(s: dict, pasta_fonte: Path, corte: dict, perfil: dict, destino
     arq, desloc = garantir_trecho(s, pasta_fonte, corte["inicio"], corte["fim"], cfg)
     ini = max(corte["inicio"] + var["d_ini"], desloc)
     fim = min(corte["fim"] + var["d_fim"], desloc + duracao(arq))
-    palavras = palavras_do_trecho(s, ini, fim)
+    from app.motor import traduz
+    palavras = traduz.para_pt(palavras_do_trecho(s, ini, fim), s.get("lingua"), cfg, pasta_fonte)  # legenda sempre em PT
     redes = [r for r in ((perfil or {}).get("redes") or ["tiktok"]) if r in estilo.REDES] or ["tiktok"]
     # 1 vídeo só, com as margens da rede mais restritiva (TikTok cobre mais): serve para todas as redes e custa 1 encode
     margem = "tiktok" if "tiktok" in redes or len(redes) > 1 else redes[0]

@@ -224,7 +224,7 @@ def _rodar_tarefa(db: Banco, cfg: Config, tf: dict) -> None:
         if dados.get("base"):  # prévia sem marca para a vitrine (só fonte pública)
             if b["publico"]:
                 feito = montar.base(s, pf, dados["corte"], cfg)
-                db.exec("UPDATE cortes_base SET capa=?, previa=? WHERE id=?", (feito["capa"], feito["base"], b["id"]))
+                db.exec("UPDATE cortes_base SET capa=?, previa=? WHERE id=?", (feito["capa"], feito.get("previa") or feito["base"], b["id"]))
             db.exec("UPDATE tarefas SET estado='pronto' WHERE id=?", (tf["id"],))
             return
         entrada = json.loads(t["entrada"])
