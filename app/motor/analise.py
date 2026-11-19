@@ -151,7 +151,32 @@ def julgar(s: dict, pasta: Path, objetivo: str, quantos: int, cfg, avisar: Calla
 
 
 def palavras_do_trecho(s: dict, ini: float, fim: float) -> list[dict]:
-    """Palavras do corte com tempo relativo ao início do corte."""
+    """Palavras do corte com tempo relativo ao início do corte (das legendas do YouTube; ver montar.palavras_corte)."""
     todas = s.get("palavras") or s.get("palavras_whisper") or []
-    return [{"start": round(w["start"] - ini, 2), "end": round(w["end"] - ini, 2), "word": w["word"]}
-            for w in todas if w["end"] > ini and w["start"] < fim]
+    ws = [{"start": round(w["start"] - ini, 2), "end": round(w["end"] - ini, 2), "word": w["word"]}
+          for w in todas if w["end"] > ini and w["start"] < fim and not re.fullmatch(r"[>\-–—]+", str(w["word"]).strip())]
+    return espalhar(ws)
+
+
+def espalhar(ws: list[dict]) -> list[dict]:
+    """Palavras com o MESMO início (bloco de legenda sem tempo por palavra, cache antigo) viram uma sequência no tempo do bloco,
+    proporcional ao tamanho. Sem isso a legenda mostra o bloco todo de uma vez e fica fora de sincronia."""
+    out: list[dict] = []
+    i = 0
+    while i < len(ws):
+        j = i
+        while j + 1 < len(ws) and abs(ws[j + 1]["start"] - ws[i]["start"]) < 0.02:
+            j += 1
+        grupo = ws[i:j + 1]
+        if len(grupo) == 1:
+            out.append(dict(grupo[0]))
+        else:
+            a0 = grupo[0]["start"]
+            prox = ws[j + 1]["start"] if j + 1 < len(ws) else max(w["end"] for w in grupo)
+            b0 = max(prox, a0 + 0.22 * len(grupo))
+            pesos = [len(str(w["word"])) + 2 for w in grupo]; tot, acc = sum(pesos), 0.0
+            for w, peso in zip(grupo, pesos):
+                ini = a0 + (b0 - a0) * acc / tot; acc += peso
+                out.append({"start": round(ini, 2), "end": round(a0 + (b0 - a0) * acc / tot, 2), "word": w["word"]})
+        i = j + 1
+    return out

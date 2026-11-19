@@ -71,6 +71,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         destaque = "&H0000E6FF" if cor == COR_PADRAO else c  # amarelo clássico, ou a cor da marca do cliente
         dentro = [w for w in palavras_rel if w["end"] > 0 and w["start"] < dur and str(w["word"]).strip()]
         grupo: list[dict] = []
+        ultimo_fim = 0.0
+        dentro.sort(key=lambda w: w["start"])
         for k, w in enumerate(dentro):
             grupo.append(w)
             prox = dentro[k + 1] if k + 1 < len(dentro) else None
@@ -79,9 +81,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 pal = [re.sub(r"[.,;:]+$", "", str(x["word"]).strip().upper()) for x in grupo]
                 # karaokê: uma linha por palavra falada, a palavra da vez em destaque e maior; o grupo entra com um pulo
                 for j, x in enumerate(grupo):
-                    a = max(0.0, x["start"] if j else grupo[0]["start"])
+                    a = max(0.0, x["start"] if j else grupo[0]["start"], ultimo_fim)
                     b = grupo[j + 1]["start"] if j + 1 < len(grupo) else fim_grupo
                     b = min(dur, max(b, a + 0.12))
+                    ultimo_fim = b
                     partes = [(f"{{\\1c{destaque}\\fscx112\\fscy112}}{_txt(p)}{{\\r}}" if i == j else _txt(p)) for i, p in enumerate(pal)]
                     entrada = "{\\fscx88\\fscy88\\t(0,90,\\fscx100\\fscy100)}" if j == 0 else ""
                     linhas.append(f"Dialogue: 0,{tempo(a)},{tempo(b)},Leg,,0,0,0,,{entrada}{' '.join(partes)}")

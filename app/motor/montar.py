@@ -141,6 +141,30 @@ def base(s: dict, pasta_fonte: Path, corte: dict, cfg) -> dict:
             "capa": str(capa) if capa.exists() else None, "duracao": round(duracao(limpo), 1)}
 
 
+def palavras_corte(s: dict, pasta_fonte: Path, arq: Path, desloc: float, ini: float, fim: float) -> list[dict]:
+    """Palavras do corte com tempo REAL (Whisper no áudio do trecho, cache por corte). Reserva: legendas do YouTube espalhadas."""
+    from app.motor.analise import palavras_do_trecho
+    cache = pasta_corte(pasta_fonte, ini, fim) / f"palavras_{ini:.2f}_{fim:.2f}.json"
+    if cache.exists():
+        try:
+            return json.loads(cache.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        from app.motor import whisper_cpu
+        a, b = max(0.0, ini - desloc), max(0.0, fim - desloc)
+        ws = whisper_cpu.transcrever(arq, [(a, b)], (s.get("lingua") or "pt")[:2])
+        ws = [{"start": round(float(w["start"]) - a, 2), "end": round(float(w["end"]) - a, 2), "word": str(w["word"]).strip()} for w in ws
+              if str(w["word"]).strip() and w["end"] > a and w["start"] < b]
+        if len(ws) >= 3:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(json.dumps(ws, ensure_ascii=False), encoding="utf-8")
+            return ws
+    except Exception as e:  # noqa: BLE001
+        log.warning("whisper no corte falhou (%s); uso a legenda do YouTube", e)
+    return palavras_do_trecho(s, ini, fim)
+
+
 def previa_vitrine(s: dict, pasta_fonte: Path, corte: dict, cfg, refazer: bool = False) -> Path | None:
     """Prévia da vitrine com pós-produção (47e §1): legenda em português com karaokê, título grande em caixa, barra de progresso.
     SEM @: o corte da vitrine é reaproveitado por vários clientes (o @ entra só na versão de cada um)."""
@@ -153,7 +177,7 @@ def previa_vitrine(s: dict, pasta_fonte: Path, corte: dict, cfg, refazer: bool =
         return dest
     try:
         arq, desloc = garantir_trecho(s, pasta_fonte, ini, fim, cfg)
-        palavras = traduz.para_pt(palavras_do_trecho(s, ini, fim), s.get("lingua"), cfg, pasta_fonte)
+        palavras = traduz.para_pt(palavras_corte(s, pasta_fonte, arq, desloc, ini, fim), s.get("lingua"), cfg, pasta_fonte)
         a = pc / "previa.ass"
         a.write_text(estilo.ass(palavras, fim - ini, corte.get("gancho") or "", "tiktok", "", estilo.COR_PADRAO, True), encoding="utf-8")
         tmp = pc / "previa.tmp.mp4"
@@ -183,7 +207,7 @@ def personalizado(s: dict, pasta_fonte: Path, corte: dict, perfil: dict, destino
     ini = max(corte["inicio"] + var["d_ini"], desloc)
     fim = min(corte["fim"] + var["d_fim"], desloc + duracao(arq))
     from app.motor import traduz
-    palavras = traduz.para_pt(palavras_do_trecho(s, ini, fim), s.get("lingua"), cfg, pasta_fonte)  # legenda sempre em PT
+    palavras = traduz.para_pt(palavras_corte(s, pasta_fonte, arq, desloc, ini, fim), s.get("lingua"), cfg, pasta_fonte)  # legenda sempre em PT
     redes = [r for r in ((perfil or {}).get("redes") or ["tiktok"]) if r in estilo.REDES] or ["tiktok"]
     # 1 vídeo só, com as margens da rede mais restritiva (TikTok cobre mais): serve para todas as redes e custa 1 encode
     margem = "tiktok" if "tiktok" in redes or len(redes) > 1 else redes[0]

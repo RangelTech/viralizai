@@ -111,9 +111,16 @@ def palavras_json3(caminho: Path) -> list[dict]:
         itens = [(t0 + (s.get("tOffsetMs") or 0) / 1000, (s.get("utf8") or "").strip()) for s in segs]
         itens = [(t, w) for t, w in itens if w and w != "\n" and not re.fullmatch(r"\[.*\]", w)]
         for k, (t, w) in enumerate(itens):
-            fim = itens[k + 1][0] if k + 1 < len(itens) else min(fim_ev, t + 1.2) if fim_ev > t else t + 0.5
-            for pedaco in w.split():
-                out.append({"start": round(t, 2), "end": round(max(fim, t + 0.15), 2), "word": pedaco})
+            fim = itens[k + 1][0] if k + 1 < len(itens) else (fim_ev if fim_ev > t else t + 0.5)
+            pedacos = [x for x in w.split() if not re.fullmatch(r"[>\-–—]+", x)]
+            if not pedacos:
+                continue
+            # bloco com várias palavras (legenda manual / sem tempo por palavra): espalha no tempo do bloco, proporcional ao tamanho
+            fim = max(fim, t + 0.25 * len(pedacos))
+            pesos = [len(x) + 2 for x in pedacos]; tot, acc = sum(pesos), 0.0
+            for x, peso in zip(pedacos, pesos):
+                a0 = t + (fim - t) * acc / tot; acc += peso
+                out.append({"start": round(a0, 2), "end": round(t + (fim - t) * acc / tot, 2), "word": x})
     out.sort(key=lambda w: w["start"])
     # eventos sobrepostos da legenda "rolante": tira duplicatas e corrige o fim
     limpo: list[dict] = []
