@@ -150,6 +150,11 @@ def palavras_corte(s: dict, pasta_fonte: Path, arq: Path, desloc: float, ini: fl
             return json.loads(cache.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
             pass
+    # 1º: transcrição do YouTube, se ela tem tempo POR PALAVRA (legenda automática: quase todo início é diferente) — instantâneo
+    yt = [w for w in (s.get("palavras") or s.get("palavras_whisper") or []) if w["end"] > ini and w["start"] < fim]
+    if len(yt) >= 8 and len({round(w["start"], 2) for w in yt}) / len(yt) > .85:
+        return palavras_do_trecho(s, ini, fim)
+    # 2º: veio em blocos (legenda manual / sem tempo por palavra): Whisper só no trecho do corte
     try:
         from app.motor import whisper_cpu
         a, b = max(0.0, ini - desloc), max(0.0, fim - desloc)
