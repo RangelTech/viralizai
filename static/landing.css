@@ -120,3 +120,21 @@ footer .c{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between}
 .vid span u-i,.leg u-i{color:#ff8a2b}
 .tag u-i{vertical-align:-.15em;margin-right:2px}
 .mv-cta1 u-i,.mv-cta2 u-i{margin-right:4px}
+
+/* ===== Tema Vice (landing do Fael, 19/11/2026): Miami neon, pôr do sol rosa/laranja e ciano. Arte e paleta ORIGINAIS (sem marca de jogo). ===== */
+body.vice{--bg:#0b0614;--card:#160d24;--linha:#33204d;--txt:#fbf4ff;--txt2:#c9b6dc;--cor:#ff2d95;--cor2:#e0127a;--ciano:#19e3ff;--sol:#ff8a3d;
+  --contra:#fff;--brilho:rgba(255,45,149,.55);background:radial-gradient(1200px 600px at 80% -10%,rgba(255,45,149,.10),transparent 60%),radial-gradient(900px 500px at 0% 110%,rgba(25,227,255,.08),transparent 60%),var(--bg)}
+body.vice .t{text-shadow:0 0 18px rgba(255,45,149,.28),0 0 2px rgba(25,227,255,.35)}
+body.vice .cor{color:var(--cor)}
+body.vice .hero h1 .cor,body.vice .preco-por,body.vice .tres b{background:linear-gradient(90deg,var(--cor) 0%,var(--sol) 48%,var(--ciano) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none}
+body.vice .hero::after{background:linear-gradient(180deg,rgba(11,6,20,.25),rgba(11,6,20,.15) 35%,var(--bg) 96%),linear-gradient(90deg,rgba(11,6,20,.82),transparent 68%)}
+body.vice .btn{background:linear-gradient(90deg,var(--cor),var(--sol));box-shadow:0 14px 40px var(--brilho),0 0 0 1px rgba(255,255,255,.08) inset}
+body.vice .btn:hover{background:linear-gradient(90deg,var(--cor2),var(--cor))}
+body.vice .btn.sec{background:rgba(11,6,20,.55);color:var(--txt);border:1px solid var(--ciano);box-shadow:0 0 22px rgba(25,227,255,.25)}
+body.vice .faixa{background:linear-gradient(90deg,var(--cor),#8a2be2 50%,var(--ciano));text-shadow:0 2px 0 rgba(0,0,0,.25)}
+body.vice .selo{border-color:rgba(25,227,255,.45);box-shadow:0 0 18px rgba(25,227,255,.18)}
+body.vice .logo b,body.vice .passo-n,body.vice .relogio b{color:var(--ciano)}
+body.vice .logo i{background:var(--ciano);box-shadow:0 0 16px var(--ciano)}
+body.vice .tag{background:linear-gradient(90deg,var(--cor),var(--sol))}
+body.vice section.sep{border-top:1px solid transparent;border-image:linear-gradient(90deg,transparent,var(--cor),var(--ciano),transparent) 1}
+body.vice .prova u-i{color:var(--ciano)}
