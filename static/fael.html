@@ -170,7 +170,10 @@
       <p class="fala">Gato dançando funk, coxinha cantando, bebê dando bronca. Escolha o molde, escreva o que quer e <b>veja a prévia grátis</b> antes de gerar. Não curtiu? <b>Refaz grátis.</b></p>
       <a class="btn pulsa" href="/entrar">QUERO FAZER VÍDEO COM IA</a>
     </div>
-    <div class="celulares"><div class="cel meio"><img src="/s/img/ui/video_ia.webp" alt="Tela de vídeo com IA" loading="lazy"><div class="leg">prévia grátis</div></div></div>
+    <div class="celulares">
+      <div class="cel meio cel-video"><video src="/s/img/v6_gato.mp4" poster="/s/img/v6_gato.webp" autoplay muted loop playsinline preload="metadata" aria-label="Exemplo feito com IA: gato laranja dançando e cantando Brilha, brilha, estrelinha numa laje"></video><button class="som" type="button" aria-label="Ligar o som">🔊 toque p/ ouvir</button><div class="leg">feito com IA aqui</div></div>
+      <div class="cel"><img src="/s/img/ui/video_ia.webp" alt="Tela de vídeo com IA" loading="lazy"><div class="leg">prévia grátis</div></div>
+    </div>
   </div>
 </div></section>
 
@@ -288,6 +291,11 @@
   tic(); setInterval(tic, 1000);
   const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add("ver")), { threshold: 0.2 });
   document.querySelectorAll(".cena").forEach((el) => io.observe(el));
+  document.querySelectorAll(".cel-video").forEach((c) => {
+    const v = c.querySelector("video"), b = c.querySelector(".som");
+    const alterna = () => { v.muted = !v.muted; if (!v.muted) { v.currentTime = 0; v.play(); } b.textContent = v.muted ? "🔊 toque p/ ouvir" : "🔇 silenciar"; };
+    c.addEventListener("click", alterna);
+  });
 })();
 </script>
 </body>
