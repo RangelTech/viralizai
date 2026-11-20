@@ -200,7 +200,7 @@ function esqueci() {
 }
 
 // ---------------------------------------------------------------- onboarding "Meu estilo"
-const MOLDURAS = { neon: "#2bff88", fogo: "#ff6a00", rosa: "#ff3d6e", ouro: "#ffc53d", gelo: "#3dd6ff", roxo: "#9b5cff" };
+const MOLDURAS = { neon: "#ff2d95", fogo: "#ff6a00", rosa: "#ff3d6e", ouro: "#ffc53d", gelo: "#3dd6ff", roxo: "#9b5cff" };
 async function telaBemvindo(passo = "1") {
   passo = +passo; const e = CONTA.estilo;
   const pulos = `<div class="passos">${[1, 2, 3, 4].map((i) => `<i class="${i <= passo ? "on" : ""}"></i>`).join("")}</div>`;
@@ -433,7 +433,7 @@ async function postar(ref) {
 }
 function festa() {
   const f = document.createElement("div"); f.className = "festa";
-  for (let i = 0; i < 60; i++) { const c = document.createElement("i"); c.style.left = Math.random() * 100 + "%"; c.style.background = ["#2bff88", "#ffc53d", "#ff6a00", "#fff"][i % 4]; c.style.animationDelay = Math.random() * 0.6 + "s"; f.appendChild(c); }
+  for (let i = 0; i < 60; i++) { const c = document.createElement("i"); c.style.left = Math.random() * 100 + "%"; c.style.background = ["#ff2d95", "#19e3ff", "#ff8a3d", "#fff"][i % 4]; c.style.animationDelay = Math.random() * 0.6 + "s"; f.appendChild(c); }
   document.body.appendChild(f); setTimeout(() => f.remove(), 2600);
 }
 

@@ -12,7 +12,7 @@ log = logging.getLogger("viralizai.mail")
 
 MOLDE = """<!doctype html><html><body style="margin:0;background:#0b0b10;font-family:Arial,Helvetica,sans-serif;color:#f4f4f6">
 <div style="max-width:520px;margin:0 auto;padding:32px 24px">
-<div style="font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:24px">Viraliz<span style="color:#2bff88">aí</span></div>
+<div style="font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:24px">Viraliz<span style="color:#ff2d95">aí</span></div>
 {corpo}
 <p style="color:#8b8b98;font-size:12px;margin-top:32px">Viralizaí, um produto Rangel Tech. Se você não pediu este e-mail, ignore.</p>
 </div></body></html>"""
@@ -50,8 +50,8 @@ def pronto(cfg: Config, para: str, n: int, titulo: str, tipo: str = "cortes") ->
     link = cfg.base_url + "/app#/videos"
     if tipo == "animacao":
         html = (f'<p style="font-size:16px">Sua animação <b>{titulo}</b> está pronta.</p>'
-                f'<p><a href="{link}" style="display:inline-block;background:#2bff88;color:#06110b;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:10px">Ver minha animação</a></p>')
+                f'<p><a href="{link}" style="display:inline-block;background:#ff2d95;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:10px">Ver minha animação</a></p>')
         return enviar(cfg, para, "Sua animação está pronta", f"Sua animação {titulo} está pronta: {link}", html)
     html = (f'<p style="font-size:16px">Seus <b>{n} cortes</b> de <b>{titulo}</b> estão prontos.</p>'
-            f'<p><a href="{link}" style="display:inline-block;background:#2bff88;color:#06110b;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:10px">Ver meus cortes</a></p>')
+            f'<p><a href="{link}" style="display:inline-block;background:#ff2d95;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:10px">Ver meus cortes</a></p>')
     return enviar(cfg, para, "Seus cortes estão prontos", f"Seus {n} cortes de {titulo} estão prontos: {link}", html)
