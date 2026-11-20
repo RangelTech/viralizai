@@ -24,8 +24,8 @@ ESTATICO = Path(__file__).resolve().parent.parent / "static"
 COOKIE = "viralizai_s"
 RE_URL = re.compile(r"^https?://[^\s]{6,500}$")
 RE_FONTE = re.compile(r"(youtube\.com|youtu\.be|twitch\.tv|kick\.com)", re.I)
-COR_PADRAO = "#2bff88"
-MOLDURAS = {"neon": "#2bff88", "fogo": "#ff6a00", "rosa": "#ff3d6e", "ouro": "#ffc53d", "gelo": "#3dd6ff", "roxo": "#9b5cff"}
+COR_PADRAO = "#ff2d95"
+MOLDURAS = {"neon": "#ff2d95", "fogo": "#ff6a00", "rosa": "#ff3d6e", "ouro": "#ffc53d", "gelo": "#3dd6ff", "roxo": "#9b5cff"}
 
 
 def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:

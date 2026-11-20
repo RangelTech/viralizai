@@ -19,7 +19,7 @@ def _e(nome: str, padrao: str = "") -> str:
 class Config:
     dados: str = "/data"
     base_url: str = "https://viralizai.rangeltech.net"
-    llm_base: str = "https://qwen.rangeltech.net/v1"
+    llm_base: str = "https://api.segundocerebro.pro/v1"
     llm_key: str = ""
     llm_modelo: str = "qwen-abliterated"
     llm_planejador: str = "rt-planejar"
@@ -48,7 +48,7 @@ class Config:
     demo_senha: str = ""
     google_client_id: str = ""
     google_client_secret: str = ""
-    estudio_base: str = "https://qwen.rangeltech.net/v1"    # llm-access (Vídeo com IA pela Runware)
+    estudio_base: str = "https://api.segundocerebro.pro/v1"    # llm-access (Vídeo com IA pela Runware)
     estudio_efeito: str = "video-viral"
     imagem_modelo: str = "cx/gpt-image-2"
     pexels_key: str = ""
@@ -63,7 +63,7 @@ def carregar() -> Config:
     return Config(
         dados=_e("DADOS", "/data"),
         base_url=_e("BASE_URL", "https://viralizai.rangeltech.net").rstrip("/"),
-        llm_base=_e("LLM_BASE", "https://qwen.rangeltech.net/v1").rstrip("/"),
+        llm_base=_e("LLM_BASE", "https://api.segundocerebro.pro/v1").rstrip("/"),
         llm_key=_e("LLM_KEY", ""),
         llm_modelo=_e("LLM_MODELO", "qwen-abliterated"),
         llm_planejador=_e("LLM_PLANEJADOR", "rt-planejar"),
@@ -91,7 +91,7 @@ def carregar() -> Config:
         demo_senha=_e("DEMO_SENHA", ""),
         google_client_id=_e("GOOGLE_CLIENT_ID", ""),
         google_client_secret=_e("GOOGLE_CLIENT_SECRET", ""),
-        estudio_base=_e("ESTUDIO_BASE", _e("LLM_BASE", "https://qwen.rangeltech.net/v1")).rstrip("/"),
+        estudio_base=_e("ESTUDIO_BASE", _e("LLM_BASE", "https://api.segundocerebro.pro/v1")).rstrip("/"),
         estudio_efeito=_e("ESTUDIO_EFEITO", "video-viral"),
         pexels_key=_e("PEXELS_KEY", ""),
         pixabay_key=_e("PIXABAY_KEY", ""),
