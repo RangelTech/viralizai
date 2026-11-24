@@ -1,0 +1,20 @@
+# Só NOMES das variáveis. Os valores ficam no Infisical (nunca no git). Spec 57, seção 0A.2.
+infisical:
+  projeto: rt-produtos
+  pasta: viralizai
+  ambiente: prod
+segredos:
+  - SMTP_HOST
+  - SMTP_PASSWORD
+  - SMTP_PORT
+  - SMTP_USER
+  - VIRALIZAI_ADMIN_KEY
+  - VIRALIZAI_CAKTO_SEGREDO
+  - VIRALIZAI_CHECKOUTS
+  - VIRALIZAI_DEMO_SENHA
+  - VIRALIZAI_LLM_KEY
+  - VIRALIZAI_PIXABAY_KEY
+  - VIRALIZAI_PLANOS_CAKTO
+  - VIRALIZAI_PN_TOKEN
+  - VIRALIZAI_SEGREDO_SESSAO
+  - VIRALIZAI_SMTP_FROM
