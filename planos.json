@@ -1,0 +1,48 @@
+{
+  "_doc": "Contrato de planos do produto (spec 57 §3, item 4). Quem muda preço muda AQUI, no código e na oferta da Cakto; o teste tests/test_planos_contrato.py falha se o código e este arquivo divergirem. Mapa produto da Cakto -> plano e links de checkout ficam no Infisical (nunca no git).",
+  "produto": "viralizai",
+  "moeda": "BRL",
+  "periodo": "mensal",
+  "planos": [
+    {
+      "codigo": "corte",
+      "nome": "Corte",
+      "preco": 29.9
+    },
+    {
+      "codigo": "animacao",
+      "nome": "Corte + Animação",
+      "preco": 49.9
+    },
+    {
+      "codigo": "viral",
+      "nome": "Viral",
+      "preco": 79.9
+    },
+    {
+      "codigo": "piloto",
+      "nome": "Piloto Automático",
+      "preco": 197.0
+    }
+  ],
+  "landing_fael": {
+    "conta_cakto": "adriano",
+    "planos": [
+      "corte",
+      "fael_animacao",
+      "piloto"
+    ],
+    "precos": {
+      "corte": 29.9,
+      "fael_animacao": 49.9,
+      "piloto": 119.9
+    }
+  },
+  "cakto": {
+    "conta": "lucas (landing do Fael: adriano)",
+    "infisical": "rt-produtos/viralizai",
+    "mapa": "VIRALIZAI_PLANOS_CAKTO",
+    "checkouts": "VIRALIZAI_CHECKOUTS",
+    "webhook": "POST /api/cakto (segredo em VIRALIZAI_CAKTO_SEGREDO)"
+  }
+}
