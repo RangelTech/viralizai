@@ -419,7 +419,7 @@ def test_landing_fael_conta_adriano(tmp_path):
     assert c.post("/api/cakto", json=ev2).json()["plano"] == "corte"
     assert c.post("/api/cakto", json={**ev, "secret": "outro", "data": {**ev["data"], "id": "x"}}).status_code == 401
     pagina = c.get("/", headers={"host": "viralizai.fael.rangeltech.net"}).text
-    assert "19,90" not in pagina and "99,90" not in pagina and "5 a 30" not in pagina and "1 a 10 mil" in pagina
+    assert "19,90" not in pagina and "99,90" not in pagina and "5 a 30" not in pagina and "30K" not in pagina and "1 a 10 mil" in pagina
     assert pagina.rfind("Perguntas") > pagina.rfind("Daqui a 2 minutos")  # perguntas são a última seção
     for saiu in ("Tudo que um canal monetizado", "3 passos pra", "Viva de <span", "Começa hoje por", 'id="editar"', 'id="animacao"'):
         assert saiu not in pagina, saiu

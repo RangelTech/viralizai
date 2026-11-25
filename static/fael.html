@@ -12,6 +12,10 @@
 <link rel="stylesheet" href="/s/icones.css?v=3">
 <style>
   .hero .fundo{background-position:70% 12%}
+  /* computador: a foto ocupa só a faixa da direita, o texto nunca passa pelo rosto (ordem do Lucas 25/11) */
+  @media(min-width:800px){.hero .fundo{left:38%;background-position:62% 12%}
+    .hero::after{background:linear-gradient(90deg,var(--bg) 0,var(--bg) 36%,rgba(11,6,20,.55) 44%,rgba(11,6,20,0) 60%),linear-gradient(180deg,rgba(11,6,20,0) 70%,var(--bg) 100%)}
+    .hero h1{max-width:min(620px,52vw)!important;font-size:clamp(46px,5vw,84px)!important}.hero p{max-width:min(520px,46vw)}}
   @media(min-width:800px){.hero h1{max-width:660px;font-size:clamp(50px,6vw,92px)}.hero p{max-width:540px}}
   .urgente{display:inline-flex;gap:10px;align-items:center;background:#ff2d2d;color:#fff;font-weight:900;padding:8px 16px;border-radius:999px;font-size:14px;margin-bottom:16px;animation:pulsa 1.6s infinite}
   .cena{position:relative;overflow:hidden;padding:110px 0;min-height:86svh;display:flex;align-items:center}
@@ -83,7 +87,7 @@
     <h1 class="t">Ganhe de <span class="cor">1 a 10 mil por mês</span> sem mostrar o rosto. Sem vender. Sem gravar.</h1>
     <p><b>A IA trabalha por você 24h:</b> corta suas lives, cria animações, edita vídeos e posta sozinha no TikTok e Instagram — todo dia, enquanto você dorme. Sem gravar, sem aparecer na câmera, sem fazer absolutamente nada. <b>Seu primeiro vídeo pronto em 2 minutos.</b></p>
     <div class="bts"><a class="btn pulsa" href="#planos-sec">VOU GANHAR DINHEIRO AGORA</a><a class="btn sec" href="#como">Ver o app funcionando <u-i class=i-chevd></u-i></a></div>
-    <div class="prova"><span><u-i class=i-money></u-i> R$ 5K a R$ 30K/mês</span><span><u-i class=i-zap></u-i> 1º vídeo em 2 min</span><span><u-i class=i-phone></u-i> 100% celular</span><span><u-i class=i-gift></u-i> Sem risco · 7 dias</span></div>
+    <div class="prova"><span><u-i class=i-money></u-i> R$ 1K a R$ 10K/mês</span><span><u-i class=i-zap></u-i> 1º vídeo em 2 min</span><span><u-i class=i-phone></u-i> 100% celular</span><span><u-i class=i-gift></u-i> Sem risco · 7 dias</span></div>
   </div>
 </header>
 <div class="faixa"><div>R$ 1 A 10 MIL POR MÊS ✦ SEM MOSTRAR O ROSTO ✦ SEM VENDER NADA ✦ SEM GRAVAR ✦ A IA TRABALHA, VOCÊ FATURA ✦ 1º VÍDEO EM 2 MINUTOS ✦ CELULAR SÓ, SEM PC ✦ SEM SEGUIDOR PRA COMEÇAR ✦ DE GRAÇA, SEM CARTÃO ✦ &nbsp;</div></div>
