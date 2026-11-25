@@ -1,7 +1,9 @@
 """Banco do Viralizaí: SQLite num volume (/data). Hora sempre em epoch (s)."""
 from __future__ import annotations
 
+import os
 import sqlite3
+import uuid
 import threading
 import time
 from contextlib import contextmanager
@@ -113,7 +115,7 @@ CREATE TABLE IF NOT EXISTS cacador_rodadas (id INTEGER PRIMARY KEY, usuario INTE
 """
 
 
-class Banco:
+class BancoSQLite:
     def __init__(self, caminho: str):
         self.caminho = caminho
         self._trava = threading.RLock()
@@ -122,9 +124,7 @@ class Banco:
         self.con.execute("PRAGMA journal_mode=WAL")
         self.con.execute("PRAGMA foreign_keys=ON")
         self.con.executescript(ESQUEMA)
-        cols = {r[1] for r in self.con.execute("PRAGMA table_info(cacador)")}
-        if "posts_dia" not in cols:  # posts por dia em cada rede (1 a 5, conforme o plano)
-            self.con.execute("ALTER TABLE cacador ADD COLUMN posts_dia INTEGER NOT NULL DEFAULT 1")
+        _migrar_esquema(self)
 
     @contextmanager
     def tx(self):
@@ -153,3 +153,25 @@ class Banco:
 
 def agora() -> float:
     return time.time()
+
+
+def _migrar_esquema(self):
+    """Migrações de coluna e tabela (rodam no SQLite e no Postgres; spec 57)."""
+    cols = {r[1] for r in self.con.execute("PRAGMA table_info(cacador)")}
+    if "posts_dia" not in cols:  # posts por dia em cada rede (1 a 5, conforme o plano)
+        self.con.execute("ALTER TABLE cacador ADD COLUMN posts_dia INTEGER NOT NULL DEFAULT 1")
+
+
+def Banco(caminho: str):
+    """Postgres central (banco `produtos`, schema do produto) quando PRODUTOS_DATABASE_URL existe; senão o SQLite de antes
+    (plano de volta). Spec 57, seção 8. PRODUTOS_SCHEMA_TESTE=1 dá um schema novo por instância (testes isolados)."""
+    dsn = os.environ.get("PRODUTOS_DATABASE_URL")
+    if not dsn:
+        return BancoSQLite(caminho)
+    from produtos_core.banco_pg import Banco as BancoPG
+    schema = os.environ.get("PRODUTOS_SCHEMA", "viralizai")
+    if os.environ.get("PRODUTOS_SCHEMA_TESTE"):
+        schema = "teste_" + uuid.uuid4().hex[:10]
+    b = BancoPG(dsn, schema, ESQUEMA)
+    _migrar_esquema(b)
+    return b
