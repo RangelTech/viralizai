@@ -141,7 +141,7 @@ def test_cadastro_validacoes(cli):
     assert c.post("/api/cadastro", json={"nome": "A", "email": "a@b.com", "senha": "12345678"}).status_code == 422
     _conta(c, "a@b.com")
     r = c.post("/api/cadastro", json={"nome": "A", "email": "a@b.com", "senha": "12345678", "aceite": True})
-    assert r.status_code == 409 and "Quer entrar" in r.json()["detail"]
+    assert r.status_code == 409 and "já tem conta" in r.json()["detail"]
     conta = c.get("/api/conta").json()
     assert conta["plano"] == "teste" and conta["restam_cortes"] == 1 and conta["whatsapp"] == "5562999990000"
 

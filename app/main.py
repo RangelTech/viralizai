@@ -15,7 +15,8 @@ from fastapi import FastAPI, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
-from app import admin, auth, avisos, fila, mailer, planos, senha_rotas
+from app import admin, auth, avisos, fila, mailer, planos, senha_rotas  # noqa: F401
+from produtos_core import acesso
 from app.config import Config, carregar
 from app.db import Banco, agora
 
@@ -74,7 +75,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
                 "uso": uso, "limites": lim, "restam_cortes": restam_cortes,
                 "restam_animacoes": max(0, lim["animacoes_mes"] - uso["animacoes"]), "estilo": estilo_de(u),
                 "onboarding": bool(u.get("onboarding")), "teste_usado": bool(u.get("teste_usado")), "avisos": nao_lidos,
-                "temas": json.loads(u.get("temas") or "[]"), "google": bool(cfg.google_client_id)}
+                "temas": json.loads(u.get("temas") or "[]"), "google": False}
 
     def paywall(motivo: str, recurso: str = "cortes") -> HTTPException:
         return HTTPException(402, {"mensagem": motivo, "plano": planos.plano_minimo(recurso)})
@@ -95,89 +96,35 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         return {"ok": True, "versao": os.environ.get("GIT_COMMIT", "dev")}
 
     # ------------------------------------------------ cadastro e login
-    @app.post("/api/cadastro")
-    async def cadastro(request: Request):
-        b = await request.json()
-        email = auth.normalizar_email(b.get("email"))
+    def _campos(b: dict) -> tuple[str, str]:
         nome = re.sub(r"\s+", " ", str(b.get("nome") or "")).strip()[:60]
         zap = re.sub(r"\D", "", str(b.get("whatsapp") or ""))[:13]
+        return nome, zap
+
+    def _antes_cadastro(b: dict) -> None:
+        nome, zap = _campos(b)
         if not nome:
             raise HTTPException(422, "Como você se chama?")
-        if not email:
+        if not auth.normalizar_email(b.get("email")):
             raise HTTPException(422, "Esse e-mail não parece certo.")
         if not b.get("aceite"):
             raise HTTPException(422, "Pra criar a conta, aceite os termos.")
-        senha = senha_rotas._validar_nova(b.get("senha"))
         if zap and len(zap) < 10:
             raise HTTPException(422, "Confere o WhatsApp com DDD.")
+
+    def _depois_cadastro(u: dict, b: dict, request: Request) -> None:
+        nome, zap = _campos(b)
         if zap and len(zap) <= 11:
             zap = "55" + zap
-        existe = db.um("SELECT * FROM usuarios WHERE email=?", (email,))
-        if existe and existe.get("senha_hash"):
-            raise HTTPException(409, "Esse e-mail já tem conta. Quer entrar?")
-        u = auth.usuario_por_email(db, email)
         origem = "fael" if "fael" in (request.headers.get("referer") or "") else (b.get("origem") or "rangel")
-        db.exec("UPDATE usuarios SET nome=?, whatsapp=?, senha_hash=?, origem=COALESCE(origem,?) WHERE id=?",
-                (nome, zap or None, senha_rotas.hash_senha(senha), origem[:10], u["id"]))
-        return login(db.um("SELECT * FROM usuarios WHERE id=?", (u["id"],)))
+        db.exec("UPDATE usuarios SET nome=?, whatsapp=?, origem=COALESCE(origem,?) WHERE id=?", (nome, zap or None, str(origem)[:10], u["id"]))
 
-    senha_rotas.registrar(app, db, cfg, mailer, login, usuario)  # /api/entrar/senha, /api/senha/esqueci, /api/senha/redefinir
-
-    @app.post("/api/entrar/codigo")
-    async def pedir_codigo(request: Request):
-        b = await request.json()
-        email = auth.normalizar_email(b.get("email"))
-        if not email:
-            raise HTTPException(422, "Esse e-mail não parece certo.")
-        cod, motivo = auth.novo_codigo(db, cfg.segredo_sessao, email)
-        if motivo == "espere":
-            raise HTTPException(429, "Acabamos de mandar um código; espere alguns segundos.")
-        out = {"ok": True, "enviado": mailer.codigo(cfg, email, cod)}
-        if cfg.dev:
-            out["codigo_dev"] = cod
-        return out
-
-    @app.post("/api/entrar")
-    async def entrar_codigo(request: Request):
-        b = await request.json()
-        email = auth.normalizar_email(b.get("email"))
-        r = auth.conferir_codigo(db, cfg.segredo_sessao, email or "", str(b.get("codigo") or ""))
-        if r != "ok":
-            raise HTTPException(400, {"invalido": "Código errado.", "expirado": "Código vencido; peça outro.", "tentativas": "Muitas tentativas; peça outro código."}[r])
-        return login(auth.usuario_por_email(db, email))
-
-    @app.get("/api/google")
-    def google_inicio(request: Request):
-        if not cfg.google_client_id:
-            raise HTTPException(404, "Entrar com Google ainda não está ligado.")
-        estado = secrets.token_urlsafe(16)
-        from urllib.parse import urlencode
-        q = urlencode({"client_id": cfg.google_client_id, "redirect_uri": cfg.base_url + "/api/google/volta", "response_type": "code",
-                       "scope": "openid email profile", "state": estado, "prompt": "select_account"})
-        resp = RedirectResponse("https://accounts.google.com/o/oauth2/v2/auth?" + q)
-        resp.set_cookie("g_estado", estado, max_age=600, httponly=True, secure=not cfg.dev, samesite="lax")
-        return resp
-
-    @app.get("/api/google/volta")
-    def google_volta(request: Request, code: str = "", state: str = ""):
-        import httpx
-        if not code or not state or state != request.cookies.get("g_estado"):
-            return RedirectResponse("/entrar?erro=google")
-        r = httpx.post("https://oauth2.googleapis.com/token", data={"code": code, "client_id": cfg.google_client_id, "client_secret": cfg.google_client_secret,
-                                                                     "redirect_uri": cfg.base_url + "/api/google/volta", "grant_type": "authorization_code"}, timeout=20)
-        if r.status_code != 200:
-            return RedirectResponse("/entrar?erro=google")
-        info = httpx.get("https://openidconnect.googleapis.com/v1/userinfo", headers={"Authorization": "Bearer " + r.json()["access_token"]}, timeout=20).json()
-        email = auth.normalizar_email(info.get("email"))
-        if not email or not info.get("email_verified"):
-            return RedirectResponse("/entrar?erro=google")
-        u = auth.usuario_por_email(db, email)
-        if not u.get("nome"):
-            db.exec("UPDATE usuarios SET nome=? WHERE id=?", ((info.get("given_name") or info.get("name") or "")[:60], u["id"]))
-        token = auth.criar_sessao(db, cfg.segredo_sessao, u["id"])
-        resp = RedirectResponse("/app")
-        resp.set_cookie(COOKIE, token, max_age=auth.SESSAO_S, httponly=True, secure=not cfg.dev, samesite="lax", path="/")
-        return resp
+    # cadastro (com nome, WhatsApp e aceite), senha, entrar por link, esqueci a senha, captcha e limites: módulo comum (spec 57 §5A)
+    acesso.registrar(app, db, enviar=lambda para, assunto, texto, html: mailer.enviar(cfg, para, assunto, texto, html),
+                     login=login, usuario=usuario, criar_usuario=lambda email: auth.usuario_por_email(db, email),
+                     produto="Viralizaí", base_url=cfg.base_url, destino="/app", cor="#ff2d95",
+                     demo_email=lambda: cfg.demo_email, demo_senha=lambda: cfg.demo_senha, dev=cfg.dev,
+                     antes_cadastro=_antes_cadastro, depois_cadastro=_depois_cadastro, pagina_entrar="/entrar")
 
     @app.post("/api/sair")
     def sair(request: Request):

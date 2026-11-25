@@ -148,7 +148,6 @@ function telaEntrar() {
   const desenhar = () => {
     tela.innerHTML = `<div class="entrar"><div class="logo"><span class="gota"></span><span>Viraliz<b>aí</b></span></div>
       <div class="abas"><button data-a="criar" class="${aba === "criar" ? "sel" : ""}">Criar conta</button><button data-a="entrar" class="${aba === "entrar" ? "sel" : ""}">Entrar</button></div>
-      ${CONTA_GOOGLE ? '<a class="btn bloco" href="/api/google"><b style="color:#4285f4">G</b> Continuar com Google</a><div class="ou">ou</div>' : ""}
       <form id="f" novalidate>${aba === "criar" ? `
         <label class="campo">Seu nome<input class="input" name="nome" autocomplete="given-name" required></label>
         <label class="campo">E-mail<input class="input" name="email" type="email" autocomplete="email" required></label>
@@ -160,10 +159,12 @@ function telaEntrar() {
         <label class="campo">E-mail<input class="input" name="email" type="email" autocomplete="email" required></label>
         <label class="campo">Senha<div class="olho"><input class="input" name="senha" type="password" autocomplete="current-password" required><button type="button" aria-label="Mostrar senha"><u-i class=i-eye></u-i></button></div></label>
         <div class="erro-txt" id="err"></div><button class="btn pri bloco">ENTRAR</button>
-        <p class="ajuda" style="text-align:center"><a href="#" id="esqueci">Esqueci a senha</a></p>`}</form></div>`;
+        <p class="ajuda" style="text-align:center"><a href="#" id="esqueci">Esqueci a senha</a> · <a href="#" id="por-link">Entrar por link no e-mail</a></p>`}</form></div>`;
+    try { RTCaptcha.preparar(); } catch {}
     $$("[data-a]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); aba = b.dataset.a; desenhar(); }));
     $$(".olho button").forEach((b) => (b.onclick = () => { const i = b.previousElementSibling; i.type = i.type === "password" ? "text" : "password"; }));
     const esq = $("#esqueci"); if (esq) esq.onclick = (e) => { e.preventDefault(); esqueci(); };
+    const pl = $("#por-link"); if (pl) pl.onclick = (e) => { e.preventDefault(); porLink(); };
     $("#f").onsubmit = async (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(e.target)); d.aceite = !!d.aceite;
@@ -172,6 +173,7 @@ function telaEntrar() {
       if (falta) { $("#err").textContent = falta; return; }
       const btn = $("#f .btn.pri"); btn.disabled = true; $("#err").textContent = "";
       try {
+        d.captcha = await captchaToken();
         await api(aba === "criar" ? "/api/cadastro" : "/api/entrar/senha", { json: d });
         CONTA = null; location.hash = "#/";
       } catch (er) {
@@ -181,20 +183,43 @@ function telaEntrar() {
     };
   };
   desenhar();
+  if (q.get("redefinir")) { const t = q.get("redefinir"); history.replaceState(null, "", location.pathname + location.hash); senhaNova(t); }
+  else if (q.get("link") === "invalido") { history.replaceState(null, "", location.pathname + location.hash); porLink("Esse link venceu ou já foi usado. Peça outro."); }
 }
 let CONTA_GOOGLE = false;
-function esqueci() {
-  abrirFolha(`<h2 style="margin-top:0">Esqueci a senha</h2><form id="fe"><label class="campo">Seu e-mail<input class="input" name="email" type="email" required></label>
-    <div id="passo2" class="oculto"><label class="campo">Código que chegou no e-mail<input class="input" name="codigo" inputmode="numeric" maxlength="6"></label>
-    <label class="campo">Nova senha<input class="input" name="senha" type="password" minlength="8"></label></div>
-    <div class="erro-txt" id="erre"></div><button class="btn pri bloco">Mandar código</button></form>`, (el) => {
-    let passo = 1;
-    $("#fe", el).onsubmit = async (e) => {
+const captchaToken = async () => { try { return await RTCaptcha.token(); } catch { return ""; } };
+function porLink(aviso = "") {
+  abrirFolha(`<h2 style="margin-top:0">Entrar por link</h2><p class="sub">Mandamos um link para o seu e-mail. Um clique e você entra, sem senha.</p>
+    <form id="fl"><label class="campo">Seu e-mail<input class="input" name="email" type="email" required></label>
+    <div class="erro-txt" id="errl">${esc(aviso)}</div><button class="btn pri bloco">Mandar link</button></form>`, (el) => {
+    try { RTCaptcha.preparar(); } catch {}
+    $("#fl", el).onsubmit = async (e) => {
+      e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); const b = $("#fl .btn", el); b.disabled = true;
+      try { const j = await api("/api/entrar/link", { json: { email: d.email, captcha: await captchaToken() } }); $("#errl", el).textContent = ""; toast(j.mensagem || "Se esse e-mail tiver cadastro, enviamos o link."); fecharFolha(); }
+      catch (er) { $("#errl", el).textContent = er.message; } finally { b.disabled = false; }
+    };
+  });
+}
+function senhaNova(token) {
+  abrirFolha(`<h2 style="margin-top:0">Senha nova</h2><p class="sub">Escolha a senha que você vai usar para entrar.</p>
+    <form id="fn"><label class="campo">Nova senha<input class="input" name="senha" type="password" minlength="8" autocomplete="new-password" required></label>
+    <div class="erro-txt" id="errn"></div><button class="btn pri bloco">Salvar e entrar</button></form>`, (el) => {
+    $("#fn", el).onsubmit = async (e) => {
       e.preventDefault(); const d = Object.fromEntries(new FormData(e.target));
-      try {
-        if (passo === 1) { await api("/api/senha/esqueci", { json: { email: d.email } }); passo = 2; $("#passo2", el).classList.remove("oculto"); $("#fe .btn", el).textContent = "Trocar senha e entrar"; toast("Se o e-mail tiver conta, o código chegou "); }
-        else { await api("/api/senha/redefinir", { json: d }); fecharFolha(); CONTA = null; location.hash = "#/"; }
-      } catch (er) { $("#erre", el).textContent = er.message; }
+      try { await api("/api/senha/redefinir", { json: { token, senha: d.senha } }); fecharFolha(); CONTA = null; location.href = "/app"; }
+      catch (er) { $("#errn", el).textContent = er.message; }
+    };
+  });
+}
+function esqueci() {
+  abrirFolha(`<h2 style="margin-top:0">Esqueci a senha</h2><p class="sub">Mandamos um link para o seu e-mail e você cria uma senha nova.</p>
+    <form id="fe"><label class="campo">Seu e-mail<input class="input" name="email" type="email" required></label>
+    <div class="erro-txt" id="erre"></div><button class="btn pri bloco">Mandar link</button></form>`, (el) => {
+    try { RTCaptcha.preparar(); } catch {}
+    $("#fe", el).onsubmit = async (e) => {
+      e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); const b = $("#fe .btn", el); b.disabled = true;
+      try { const j = await api("/api/senha/esqueci", { json: { email: d.email, captcha: await captchaToken() } }); toast(j.mensagem || "Se esse e-mail tiver cadastro, enviamos o link."); fecharFolha(); }
+      catch (er) { $("#erre", el).textContent = er.message; } finally { b.disabled = false; }
     };
   });
 }
