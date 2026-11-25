@@ -21,6 +21,7 @@ from app.config import Config, carregar
 from app.db import Banco, agora
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+log = logging.getLogger("viralizai")
 ESTATICO = Path(__file__).resolve().parent.parent / "static"
 COOKIE = "viralizai_s"
 RE_URL = re.compile(r"^https?://[^\s]{6,500}$")
@@ -188,7 +189,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         u = usuario(request, obrigatorio=False)
         if eh_fael(request) or (u and u.get("origem") == "fael"):
             return {"planos": [{"codigo": k, **{c: x for c, x in v.items() if c != "lancamento"}, "preco": planos.PRECOS_FAEL.get(k, v["preco"]),
-                                "checkout": cfg.checkouts_fael.get(k) or ""} for k, v in planos.PLANOS.items()],
+                                "checkout": cfg.checkouts_fael.get(k) or "", "direto": bool(cfg.checkouts_fael.get(k))} for k, v in planos.PLANOS.items()],
                     "adicionais": [], "moedas": []}
         return {"planos": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or "", "lancamento_ate": cfg.lancamento_ate} for k, v in planos.PLANOS.items()],
                 "adicionais": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or ""} for k, v in planos.ADICIONAIS.items()],
@@ -775,7 +776,11 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         except ValueError:
             raise HTTPException(400, "json")
         segredo = str(b.get("secret") or "")
-        if not any(s and hmac.compare_digest(segredo, s) for s in (cfg.cakto_segredo, cfg.cakto_segredo_fael)):
+        if cfg.cakto_segredo_fael and hmac.compare_digest(segredo, cfg.cakto_segredo_fael):
+            conta_cakto = "adriano"  # landing do Fael
+        elif cfg.cakto_segredo and hmac.compare_digest(segredo, cfg.cakto_segredo):
+            conta_cakto = "lucas"
+        else:
             raise HTTPException(401, "segredo")
         evento = str(b.get("event") or "")
         dados = b.get("data") or {}
@@ -791,13 +796,28 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         produto = cfg.planos_por_produto.get(str((dados.get("product") or {}).get("id") or ""), "")
         if not produto:  # produto que não é do Viralizaí (ex.: evento de teste da Cakto): não cria conta nem libera nada
             return {"ok": True, "ignorado": "produto fora do mapa"}
+        novo = not db.um("SELECT 1 AS x FROM usuarios WHERE email=?", (email,))
         u = auth.usuario_por_email(db, email)
+        if novo:
+            nome = str((dados.get("customer") or {}).get("name") or "").strip()[:80]
+            db.exec("UPDATE usuarios SET origem=?, nome=COALESCE(nome, NULLIF(?, '')) WHERE id=?",
+                    ("fael" if conta_cakto == "adriano" else "rangel", nome, u["id"]))
+
+        def acesso_por_email(rotulo: str) -> None:
+            """Quem pagou e ainda não tem senha recebe o e-mail "seu acesso está liberado" com link de entrada (7 dias)."""
+            if not db.um("SELECT senha_hash FROM usuarios WHERE id=?", (u["id"],)).get("senha_hash"):
+                try:
+                    request.app.state.acesso_boas_vindas(email, rotulo)
+                except Exception:  # noqa: BLE001  (o plano já foi liberado; o e-mail é cortesia)
+                    log.exception("e-mail de acesso da compra falhou para %s", email)
+
         if evento in ("purchase_approved", "subscription_renewed", "subscription_created"):
             if produto in planos.PACOTES_MOEDAS:
                 n = planos.PACOTES_MOEDAS[produto]["moedas"]
                 db.exec("UPDATE usuarios SET moedas=moedas+? WHERE id=?", (n, u["id"]))
                 db.exec("INSERT INTO moedas_mov(usuario,delta,motivo,ref,quando) VALUES(?,?,?,?,?)", (u["id"], n, "compra", str(dados.get("id") or ""), agora()))
                 avisos.novo(db, u["id"], f"Chegaram {n} moedas 🪙 Bora criar vídeo com IA!", "/app#/criar/ia")
+                acesso_por_email(f"{n} vídeos com IA")
                 return {"ok": True, "moedas": n}
             if produto in planos.ADICIONAIS:
                 ad = json.loads(u.get("adicionais") or "{}")
@@ -808,7 +828,9 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
             base = max(agora(), u["ativo_ate"])
             db.exec("UPDATE usuarios SET plano=?, ativo_ate=?, pedido=? WHERE id=?", (plano, base + 32 * 86400, str(dados.get("id") or ""), u["id"]))
             avisos.novo(db, u["id"], f"Plano {planos.PLANOS[plano]['nome']} liberado 🔥", "/app")
-            return {"ok": True, "liberado": email, "plano": plano}
+            if evento == "purchase_approved":
+                acesso_por_email(planos.PLANOS[plano]["nome"])
+            return {"ok": True, "liberado": email, "plano": plano, "conta_cakto": conta_cakto}
         if evento in ("refund", "chargeback", "subscription_canceled", "subscription_cancelled"):
             if produto in planos.PACOTES_MOEDAS:
                 return {"ok": True, "ignorado": "estorno de moedas tratado à mão"}

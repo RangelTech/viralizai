@@ -42,7 +42,8 @@
     const p = await fetch("/api/planos").then((x) => x.json());
     $("#planos").innerHTML = p.planos.map((x) => `<div class="pl ${x.destaque ? "dest" : ""}">${x.destaque ? '<span class="tag">MAIS ESCOLHIDO</span>' : ""}
       <h3>${esc(x.nome)}</h3>${x.lancamento ? `<div class="de">${brl(x.preco)}</div>` : ""}<div class="p">${brl(x.lancamento || x.preco).replace(",90", '<small>,90</small>').replace(",00", "")}<small>/mês</small></div>
-      <ul>${x.itens.map((i) => `<li>${esc(i)}</li>`).join("")}</ul><a class="btn ${x.destaque ? "pulsa" : "sec"}" href="/entrar?plano=${x.codigo}">Começar agora</a></div>`).join("");
+      <ul>${x.itens.map((i) => `<li>${esc(i)}</li>`).join("")}</ul><a class="btn ${x.destaque ? "pulsa" : "sec"}" href="${x.direto && x.checkout ? esc(x.checkout) : "/entrar?plano=" + x.codigo}">${x.direto ? "Assinar agora" : "Começar agora"}</a></div>`).join("");
+    if (!p.moedas.length) { const m = $("#moedas"); if (m) m.style.display = "none"; } else
     $("#moedas").innerHTML = `<div><b><u-i class=i-bot></u-i> Vídeo com IA</b><br><span style="color:var(--txt2)">Pacotes de moedas, 1 moeda = 1 vídeo de 10 s</span></div>` +
       p.moedas.map((m) => `<span><b>${m.moedas} vídeos</b> ${brl(m.preco)}</span>`).join("");
   } catch {}

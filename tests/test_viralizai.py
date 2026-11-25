@@ -421,3 +421,33 @@ def test_cakto_produto_fora_do_mapa_nao_cria_conta(cli):
     ev = {"secret": "seg", "event": "purchase_approved", "data": {"id": "t1", "customer": {"email": "john.doe@example.com"}, "product": {"id": "exemplo"}}}
     assert c.post("/api/cakto", json=ev).json()["ignorado"] == "produto fora do mapa"
     assert not db.um("SELECT 1 AS x FROM usuarios WHERE email=?", ("john.doe@example.com",))
+
+
+def test_compra_direta_pela_landing_do_fael_cria_conta_e_manda_acesso(tmp_path, monkeypatch):
+    """Clicou no plano da landing do Fael -> checkout da Cakto do Adriano -> pagou: conta criada (origem fael), plano liberado
+    e e-mail "seu acesso está liberado" com link que já entra logado."""
+    import re as _re
+    from fastapi.testclient import TestClient
+    from app import mailer
+    from app.config import Config
+    from app.main import criar_app
+    caixa = []
+    monkeypatch.setattr(mailer, "enviar", lambda cfg, para, assunto, texto, html: caixa.append((para, assunto, texto)) or True)
+    cfg = Config(dados=str(tmp_path), dev=True, cakto_segredo="seg-lucas", cakto_segredo_fael="seg-adriano",
+                 planos_por_produto={"a-viral": "viral"}, checkouts_fael={"viral": "https://pay.cakto.com.br/adri-viral"})
+    app = criar_app(cfg, iniciar_fila=False)
+    c = TestClient(app)
+    viral = [p for p in c.get("/api/planos", headers={"host": "viralizai.fael.rangeltech.net"}).json()["planos"] if p["codigo"] == "viral"][0]
+    assert viral["direto"] and viral["checkout"].endswith("/adri-viral")
+    ev = {"secret": "seg-adriano", "event": "purchase_approved",
+          "data": {"id": "o1", "customer": {"email": "novo@cliente.com", "name": "Cliente Novo"}, "product": {"id": "a-viral"}}}
+    r = c.post("/api/cakto", json=ev).json()
+    assert r["plano"] == "viral" and r["conta_cakto"] == "adriano"
+    u = app.state.db.um("SELECT origem, nome, plano FROM usuarios WHERE email=?", ("novo@cliente.com",))
+    assert u["origem"] == "fael" and u["nome"] == "Cliente Novo" and u["plano"] == "viral"
+    para, assunto, texto = caixa[-1]
+    assert para == "novo@cliente.com" and "liberado" in assunto and "Viral" in texto
+    link = _re.search(r"/acesso/entrar\?t=\S+", texto).group(0)
+    nav = TestClient(app)
+    assert nav.get(link, follow_redirects=False).status_code == 303
+    assert nav.get("/api/conta").json()["plano"] == "viral"
