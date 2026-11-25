@@ -397,22 +397,33 @@ def test_landing_fael_conta_adriano(tmp_path):
     from app.config import Config
     from app.main import criar_app
     cfg = Config(dados=str(tmp_path), dev=True, cakto_segredo="seg-lucas", cakto_segredo_fael="seg-adriano",
-                 planos_por_produto={"p-corte": "corte", "a-viral": "viral"}, checkouts={"corte": "https://pay.cakto.com.br/lucas"},
-                 checkouts_fael={"corte": "https://pay.cakto.com.br/adri-corte", "viral": "https://pay.cakto.com.br/adri-viral"})
+                 planos_por_produto={"p-corte": "corte", "a-anim": "fael_animacao"}, checkouts={"corte": "https://pay.cakto.com.br/lucas"},
+                 checkouts_fael={"corte": "https://pay.cakto.com.br/adri-corte", "animacao": "https://pay.cakto.com.br/adri-anim",
+                                 "piloto": "https://pay.cakto.com.br/adri-piloto"})
     c = TestClient(criar_app(cfg, iniciar_fila=False))
     nosso = c.get("/api/planos").json()
     assert nosso["planos"][0]["checkout"].endswith("/lucas") and nosso["moedas"]
+    assert [p["codigo"] for p in nosso["planos"]] == ["corte", "animacao", "viral", "piloto"]  # landing do Lucas não muda
     fael = c.get("/api/planos", headers={"host": "viralizai.fael.rangeltech.net"}).json()
     precos = {p["codigo"]: p["preco"] for p in fael["planos"]}
-    assert precos == {"corte": 29.90, "animacao": 49.90, "viral": 99.90, "piloto": 119.90}
+    assert precos == {"corte": 29.90, "fael_animacao": 49.90, "piloto": 119.90}  # o de 99,90 saiu (25/11)
+    anim = [p for p in fael["planos"] if p["codigo"] == "fael_animacao"][0]
+    piloto = [p for p in fael["planos"] if p["codigo"] == "piloto"][0]
+    assert anim["checkout"].endswith("/adri-anim") and anim["cortes_mes"] == 200 and anim["animacoes_mes"] == 60 and not anim["postar"]
+    assert piloto["postar"] and any("Posta sozinho" in i for i in piloto["itens"]) and not any("Posta" in i for i in anim["itens"])
     assert fael["planos"][0]["checkout"].endswith("/adri-corte") and "lancamento" not in fael["planos"][0]
     assert fael["moedas"] == [] and fael["adicionais"] == []
-    ev = {"secret": "seg-adriano", "event": "purchase_approved", "data": {"id": "a1", "customer": {"email": "fa@t.com"}, "product": {"id": "a-viral"}}}
-    assert c.post("/api/cakto", json=ev).json()["plano"] == "viral"
+    ev = {"secret": "seg-adriano", "event": "purchase_approved", "data": {"id": "a1", "customer": {"email": "fa@t.com"}, "product": {"id": "a-anim"}}}
+    assert c.post("/api/cakto", json=ev).json()["plano"] == "fael_animacao"
     ev2 = {**ev, "secret": "seg-lucas", "data": {**ev["data"], "id": "l1", "product": {"id": "p-corte"}}}
     assert c.post("/api/cakto", json=ev2).json()["plano"] == "corte"
     assert c.post("/api/cakto", json={**ev, "secret": "outro", "data": {**ev["data"], "id": "x"}}).status_code == 401
-    assert "19,90" not in c.get("/", headers={"host": "viralizai.fael.rangeltech.net"}).text
+    pagina = c.get("/", headers={"host": "viralizai.fael.rangeltech.net"}).text
+    assert "19,90" not in pagina and "99,90" not in pagina and "5 a 30" not in pagina and "1 a 10 mil" in pagina
+    assert pagina.rfind("Perguntas") > pagina.rfind("Daqui a 2 minutos")  # perguntas são a última seção
+    for saiu in ("Tudo que um canal monetizado", "3 passos pra", "Viva de <span", "Começa hoje por", 'id="editar"', 'id="animacao"'):
+        assert saiu not in pagina, saiu
+    assert 'id="anims"' in pagina and pagina.index('id="anims"') > pagina.index('id="prontos"')  # animações geradas abaixo dos cortes
 
 
 def test_cakto_produto_fora_do_mapa_nao_cria_conta(cli):
@@ -434,23 +445,24 @@ def test_compra_direta_pela_landing_do_fael_cria_conta_e_manda_acesso(tmp_path, 
     caixa = []
     monkeypatch.setattr(mailer, "enviar", lambda cfg, para, assunto, texto, html: caixa.append((para, assunto, texto)) or True)
     cfg = Config(dados=str(tmp_path), dev=True, cakto_segredo="seg-lucas", cakto_segredo_fael="seg-adriano",
-                 planos_por_produto={"a-viral": "viral"}, checkouts_fael={"viral": "https://pay.cakto.com.br/adri-viral"})
+                 planos_por_produto={"a-anim": "fael_animacao"}, checkouts_fael={"animacao": "https://pay.cakto.com.br/adri-anim"})
     app = criar_app(cfg, iniciar_fila=False)
     c = TestClient(app)
-    viral = [p for p in c.get("/api/planos", headers={"host": "viralizai.fael.rangeltech.net"}).json()["planos"] if p["codigo"] == "viral"][0]
-    assert viral["direto"] and viral["checkout"].endswith("/adri-viral")
+    plano = [p for p in c.get("/api/planos", headers={"host": "viralizai.fael.rangeltech.net"}).json()["planos"] if p["codigo"] == "fael_animacao"][0]
+    assert plano["direto"] and plano["checkout"].endswith("/adri-anim")
     ev = {"secret": "seg-adriano", "event": "purchase_approved",
-          "data": {"id": "o1", "customer": {"email": "novo@cliente.com", "name": "Cliente Novo"}, "product": {"id": "a-viral"}}}
+          "data": {"id": "o1", "customer": {"email": "novo@cliente.com", "name": "Cliente Novo"}, "product": {"id": "a-anim"}}}
     r = c.post("/api/cakto", json=ev).json()
-    assert r["plano"] == "viral" and r["conta_cakto"] == "adriano"
+    assert r["plano"] == "fael_animacao" and r["conta_cakto"] == "adriano"
     u = app.state.db.um("SELECT origem, nome, plano FROM usuarios WHERE email=?", ("novo@cliente.com",))
-    assert u["origem"] == "fael" and u["nome"] == "Cliente Novo" and u["plano"] == "viral"
+    assert u["origem"] == "fael" and u["nome"] == "Cliente Novo" and u["plano"] == "fael_animacao"
     para, assunto, texto = caixa[-1]
-    assert para == "novo@cliente.com" and "liberado" in assunto and "Viral" in texto
+    assert para == "novo@cliente.com" and "liberado" in assunto and "Corte + Animação" in texto
     link = _re.search(r"/acesso/entrar\?t=\S+", texto).group(0)
     nav = TestClient(app)
     assert nav.get(link, follow_redirects=False).status_code == 303
-    assert nav.get("/api/conta").json()["plano"] == "viral"
+    conta = nav.get("/api/conta").json()
+    assert conta["plano"] == "fael_animacao" and conta["restam_cortes"] == 200  # o limite do antigo Viral vale de verdade
 
 
 def test_apagar_usuario_leva_os_arquivos(cli):

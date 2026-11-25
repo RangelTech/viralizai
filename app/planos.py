@@ -21,7 +21,19 @@ PACOTES_MOEDAS = {
     "m35": {"moedas": 35, "preco": 49.90, "destaque": "melhor preço"},
 }
 # Landing do Fael (conta Cakto do Adriano, ordem do Lucas 25/11): sem preço de lançamento, sem pacotes de vídeo
-PRECOS_FAEL = {"corte": 29.90, "animacao": 49.90, "viral": 99.90, "piloto": 119.90}
+PRECOS_FAEL = {"corte": 29.90, "fael_animacao": 49.90, "piloto": 119.90}
+# Landing do Fael (25/11): o 49,90 leva os limites do antigo Viral (200 cortes e 60 animações), mas NÃO posta sozinho;
+# postar sozinho é do 119,90. Plano interno próprio para o limite valer de verdade (só aparece na landing do Fael).
+PLANOS["fael_animacao"] = {"nome": "Corte + Animação", "preco": 49.90, "cortes_mes": 200, "animacoes_mes": 60, "postar": False, "prioridade": 3,
+                           "itens": ["200 cortes por mês", "60 animações por mês", "Editar meu vídeo", "Prontos pra postar"],
+                           "destaque": True, "so_fael": True}
+# o que a landing do Fael mostra, nesta ordem: (código, checkout em CHECKOUTS_FAEL, troca de textos)
+LISTA_FAEL = [
+    ("corte", "corte", {}),
+    ("fael_animacao", "animacao", {}),
+    ("piloto", "piloto", {"itens": ["Tudo do Corte + Animação", "Posta sozinho no TikTok e no Instagram",
+                                    "A IA acha os vídeos do seu tema", "1 post por dia em cada rede, sem repetir"]}),
+]
 
 TESTE = {"cortes": 1}  # teste grátis: 1 prévia de 1 corte (não baixa, não posta)
 LIMITE_USOS_DIA = 20   # vitrine: cada corte base pode ser usado até 20x por dia (anti-duplicado)

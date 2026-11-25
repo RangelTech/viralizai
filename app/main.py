@@ -206,11 +206,14 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
     def planos_lista(request: Request):
         u = usuario(request, obrigatorio=False)
         if eh_fael(request) or (u and u.get("origem") == "fael"):
-            return {"planos": [{"codigo": k, **{c: x for c, x in v.items() if c != "lancamento"}, "preco": planos.PRECOS_FAEL.get(k, v["preco"]),
-                                "checkout": cfg.checkouts_fael.get(k) or "", "direto": bool(cfg.checkouts_fael.get(k))} for k, v in planos.PLANOS.items()],
-                    "adicionais": [], "moedas": []}
+            lista = []
+            for k, ck, extra in planos.LISTA_FAEL:
+                v = {c: x for c, x in planos.PLANOS[k].items() if c not in ("lancamento", "so_fael")}
+                lista.append({"codigo": k, **v, **extra, "preco": planos.PRECOS_FAEL[k],
+                              "checkout": cfg.checkouts_fael.get(ck) or "", "direto": bool(cfg.checkouts_fael.get(ck))})
+            return {"planos": lista, "adicionais": [], "moedas": []}
         return {"planos": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or "", "direto": bool(cfg.checkouts.get(k)), "lancamento_ate": cfg.lancamento_ate}
-                           for k, v in planos.PLANOS.items()],
+                           for k, v in planos.PLANOS.items() if not v.get("so_fael")],
                 "adicionais": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or ""} for k, v in planos.ADICIONAIS.items()],
                 "moedas": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or ""} for k, v in planos.PACOTES_MOEDAS.items()]}
 
