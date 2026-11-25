@@ -795,6 +795,6 @@ async function telaEstilo() {
 window.paywall = paywall; window.folhaMoedas = folhaMoedas; window.fecharFolha = fecharFolha;
 if (location.pathname === "/entrar" && !location.hash) {
   try { if (location.search.includes("entrar=1")) sessionStorage.setItem("aba", "entrar"); } catch {}
-  history.replaceState(null, "", "/app#/entrar");
+  history.replaceState(null, "", "/app" + location.search + "#/entrar");  // mantém ?redefinir= e ?link=invalido
 }
 rotear();
