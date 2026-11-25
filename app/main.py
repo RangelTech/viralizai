@@ -788,8 +788,10 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         email = auth.normalizar_email((dados.get("customer") or {}).get("email"))
         if not email:
             return {"ok": True, "ignorado": "sem email"}
-        u = auth.usuario_por_email(db, email)
         produto = cfg.planos_por_produto.get(str((dados.get("product") or {}).get("id") or ""), "")
+        if not produto:  # produto que não é do Viralizaí (ex.: evento de teste da Cakto): não cria conta nem libera nada
+            return {"ok": True, "ignorado": "produto fora do mapa"}
+        u = auth.usuario_por_email(db, email)
         if evento in ("purchase_approved", "subscription_renewed", "subscription_created"):
             if produto in planos.PACOTES_MOEDAS:
                 n = planos.PACOTES_MOEDAS[produto]["moedas"]

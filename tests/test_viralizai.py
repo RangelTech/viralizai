@@ -413,3 +413,11 @@ def test_landing_fael_conta_adriano(tmp_path):
     assert c.post("/api/cakto", json=ev2).json()["plano"] == "corte"
     assert c.post("/api/cakto", json={**ev, "secret": "outro", "data": {**ev["data"], "id": "x"}}).status_code == 401
     assert "19,90" not in c.get("/", headers={"host": "viralizai.fael.rangeltech.net"}).text
+
+
+def test_cakto_produto_fora_do_mapa_nao_cria_conta(cli):
+    """Evento de teste da Cakto vem com produto de exemplo: não pode criar conta nem liberar plano."""
+    c, db = cli
+    ev = {"secret": "seg", "event": "purchase_approved", "data": {"id": "t1", "customer": {"email": "john.doe@example.com"}, "product": {"id": "exemplo"}}}
+    assert c.post("/api/cakto", json=ev).json()["ignorado"] == "produto fora do mapa"
+    assert not db.um("SELECT 1 AS x FROM usuarios WHERE email=?", ("john.doe@example.com",))
