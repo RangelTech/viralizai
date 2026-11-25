@@ -34,7 +34,13 @@
     } catch (e) { el.innerHTML = '<p class="msg erro">' + esc(e.message) + '</p>' }
   }
   const msg = (t, erro) => { const m = $('#u-msg'); m.textContent = t; m.className = 'msg' + (erro ? ' erro' : ' ok') }
-  nav.addEventListener('click', (e) => { if (e.target.closest('[data-aba="usuarios"]')) setTimeout(carregar, 0) })
+  // o admin liga as abas no carregamento, antes deste botão existir: a troca para "Usuários" é feita aqui
+  nav.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-aba="usuarios"]'); if (!b) return
+    document.querySelectorAll('[data-aba]').forEach((x) => x.setAttribute('aria-selected', String(x === b)))
+    document.querySelectorAll('[data-p]').forEach((p) => (p.hidden = p.dataset.p !== 'usuarios'))
+    carregar()
+  })
   main.addEventListener('input', (e) => { if (e.target.id === 'u-busca') { clearTimeout(tempo); tempo = setTimeout(() => { q = e.target.value.trim(); carregar() }, 300) } })
   main.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-acao]'); if (!b) return
