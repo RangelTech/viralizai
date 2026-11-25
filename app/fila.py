@@ -29,6 +29,24 @@ class ErroUsuario(Exception):
     """Erro mostrável ao cliente como está."""
 
 
+_ESPELHOS: dict = {}
+
+
+def espelho(cfg: Config):
+    """Arquivos do cliente no MinIO (fonte oficial), disco em cfg.dados como cache (spec 57 §8.6)."""
+    from produtos_core import armazenamento
+    if cfg.dados not in _ESPELHOS:
+        _ESPELHOS[cfg.dados] = armazenamento.Espelho(armazenamento.Armazenamento(pasta_local=str(Path(cfg.dados) / "arquivos")), cfg.dados)
+    return _ESPELHOS[cfg.dados]
+
+
+def guardar_prefixo(cfg: Config, pasta: Path, prefixo: str) -> None:
+    """Sobe só os arquivos que uma montagem acabou de gerar (corteK..., sem reenviar a pasta toda)."""
+    for f in pasta.glob(prefixo + "*"):
+        if f.is_file():
+            espelho(cfg).guardar(f)
+
+
 def pasta_trabalho(cfg: Config, tid: str) -> Path:
     return Path(cfg.dados) / "trabalhos" / tid
 
@@ -120,9 +138,11 @@ def _rodar_trabalho(db: Banco, cfg: Config, t: dict) -> None:
             res = fazer(db, t, entrada, pasta, cfg, avisar)
         elif t["tipo"] == "editar":
             from app.editor import fazer
+            espelho(cfg).garantir(Path(entrada["arquivo"]))
             res = fazer(entrada, pasta, cfg, avisar)
         else:
             raise ErroUsuario("Esse tipo de pedido ainda não está disponível.")
+        espelho(cfg).guardar_pasta(pasta)  # resultado no MinIO antes de aparecer como pronto
         db.exec("UPDATE trabalhos SET estado='pronto', etapa='Pronto', progresso=1, resultado=?, fim=? WHERE id=?",
                 (json.dumps(res, ensure_ascii=False), agora(), tid))
         avisos.pronto(db, cfg, t, len(res.get("cortes") or []), res.get("titulo") or "")
@@ -231,6 +251,7 @@ def _rodar_tarefa(db: Banco, cfg: Config, tf: dict) -> None:
         livre = dados.get("livre", True)
         var = montar.variacao(f"{t['usuario']}:{b['id']}:{dt.date.today()}", livre)
         feito = montar.personalizado(s, pf, dados["corte"], entrada.get("perfil") or {}, pasta_trabalho(cfg, t["id"]), f"corte{tf['k']}", cfg, var)
+        guardar_prefixo(cfg, pasta_trabalho(cfg, t["id"]), f"corte{tf['k']}")
         if not livre:
             db.exec("INSERT INTO usos(corte_base,usuario,quando) VALUES(?,?,?)", (b["id"], t["usuario"], agora()))
             db.exec("UPDATE cortes_base SET usos=usos+1 WHERE id=?", (b["id"],))
@@ -314,7 +335,7 @@ def limpar_antigos(db: Banco, cfg: Config) -> int:
     limite = agora() - cfg.guardar_dias * 86400
     n = 0
     for t in db.todos("SELECT id FROM trabalhos WHERE fim IS NOT NULL AND fim<? AND entrada NOT LIKE '%\"apagado\"%'", (limite,)):
-        shutil.rmtree(pasta_trabalho(cfg, t["id"]), ignore_errors=True)
+        espelho(cfg).apagar_pasta(pasta_trabalho(cfg, t["id"]))  # disco e MinIO
         db.exec("UPDATE trabalhos SET entrada=json_set(entrada,'$.apagado',1) WHERE id=?", (t["id"],))
         n += 1
     return n

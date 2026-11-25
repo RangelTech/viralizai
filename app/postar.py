@@ -50,12 +50,15 @@ def pasta_posts(cfg, uid: int) -> Path:
 def agendar(db: Banco, cfg, uid: int, conta: int, arquivo: Path, legenda: str, quando: float, pedido: str | None = None, k: int | None = None,
             capa: Path | None = None, origem: str = "manual") -> int:
     """Copia o vídeo para a pasta de posts (o pedido some em 30 dias; o post agendado não pode perder o arquivo)."""
+    from app.fila import espelho
     dest = pasta_posts(cfg, uid) / f"{int(time.time() * 1000)}_{arquivo.name}"
-    shutil.copy(arquivo, dest)
+    shutil.copy(espelho(cfg).garantir(arquivo), dest)
+    espelho(cfg).guardar(dest)
     capa_dest = None
-    if capa and capa.exists():
+    if capa and espelho(cfg).garantir(capa).exists():
         capa_dest = dest.with_suffix(".jpg")
         shutil.copy(capa, capa_dest)
+        espelho(cfg).guardar(capa_dest)
     lim = REDES.get((db.um("SELECT rede FROM contas WHERE id=?", (conta,)) or {}).get("rede") or "tiktok", REDES["tiktok"])["limite_legenda"]
     cur = db.exec("INSERT INTO posts(usuario,conta,pedido,k,arquivo,capa,legenda,quando,origem,criado) VALUES(?,?,?,?,?,?,?,?,?,?)",
                   (uid, conta, pedido, k, str(dest), str(capa_dest) if capa_dest else None, (legenda or "")[:lim], quando, origem, agora()))
@@ -69,6 +72,8 @@ def publicar_um(db: Banco, cfg, p: dict, pn: PN | None = None) -> None:
         db.exec("UPDATE posts SET estado='falhou', erro=? WHERE id=?", ("A conta não está conectada. Conecta de novo e toca em tentar de novo.", p["id"]))
         return
     try:
+        from app.fila import espelho
+        espelho(cfg).garantir(Path(p["arquivo"]))
         r = pn.publicar(chave_pn(k["id"]), "video", p["legenda"] or "", [p["arquivo"]])
         db.exec("UPDATE posts SET estado='publicado', link=?, publicado=?, erro=NULL WHERE id=?", (r.get("link"), agora(), p["id"]))
         avisos.novo(db, p["usuario"], f"Seu vídeo saiu no {REDES.get(k['rede'], {}).get('nome', k['rede'])} ✓", "/app#/postagens")

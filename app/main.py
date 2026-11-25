@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 from app import admin, auth, avisos, fila, mailer, planos, senha_rotas  # noqa: F401
-from produtos_core import acesso
+from produtos_core import acesso, armazenamento
 from app.config import Config, carregar
 from app.db import Banco, agora
 
@@ -125,6 +125,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
                      produto="Viralizaí", base_url=cfg.base_url, destino="/app", cor="#ff2d95",
                      demo_email=lambda: cfg.demo_email, demo_senha=lambda: cfg.demo_senha, dev=cfg.dev,
                      antes_cadastro=_antes_cadastro, depois_cadastro=_depois_cadastro, pagina_entrar="/entrar")
+    armazenamento.registrar(app, fila.espelho(cfg).arm)  # MinIO (spec 57 §8.6)
 
     @app.post("/api/sair")
     def sair(request: Request):
@@ -353,7 +354,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         t = db.um("SELECT * FROM trabalhos WHERE id=? AND usuario=?", (tid, u["id"]))
         if not t:
             raise HTTPException(404, "Não encontrado.")
-        shutil.rmtree(fila.pasta_trabalho(cfg, tid), ignore_errors=True)
+        fila.espelho(cfg).apagar_pasta(fila.pasta_trabalho(cfg, tid))  # disco e MinIO
         db.exec("DELETE FROM trabalhos WHERE id=?", (tid,))
         return {"ok": True}
 
@@ -367,7 +368,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
             raise HTTPException(404, "Não encontrado.")
         if baixar and json.loads(t["entrada"]).get("teste") and planos.plano_ativo(u, agora()) == "teste":
             raise paywall("Gostou? Pra baixar e postar, escolha um plano 🔥", "baixar")
-        p = fila.pasta_trabalho(cfg, tid) / nome
+        p = fila.espelho(cfg).garantir(fila.pasta_trabalho(cfg, tid) / nome)
         if not p.exists():
             raise HTTPException(410, f"Esse arquivo já foi apagado (guardamos por {cfg.guardar_dias} dias).")
         mt = {"mp4": "video/mp4", "jpg": "image/jpeg", "png": "image/png", "mp3": "audio/mpeg"}[nome.rsplit(".", 1)[1]]
@@ -406,6 +407,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
             perfil["legenda"] = bool(b["legenda"])
         n = int(time.time()) % 100000
         feito = await run_in_threadpool(montar.personalizado, s, pf, corte, perfil, fila.pasta_trabalho(cfg, tid), f"corte{k}_e{n}", cfg, var)
+        fila.guardar_prefixo(cfg, fila.pasta_trabalho(cfg, tid), f"corte{k}_e{n}")
 
         def por(r):
             for x in r.get("cortes", []):
@@ -452,7 +454,9 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         return {"itens": vitrine_sql(tema if tema in NOMES_TEMA else "", "", max(1, min(20, limite)))}
 
     def exemplos() -> list[dict]:
-        f = Path(cfg.dados) / "exemplos" / "exemplos.json"
+        f = fila.espelho(cfg).garantir(Path(cfg.dados) / "exemplos" / "exemplos.json")
+        if f.exists() and not any((Path(cfg.dados) / "exemplos").glob("*.mp4")):
+            fila.espelho(cfg).garantir_pasta(Path(cfg.dados) / "exemplos")
         try:
             return [e for e in json.loads(f.read_text(encoding="utf-8")) if (Path(cfg.dados) / "exemplos" / e["arquivo"]).exists()]
         except (OSError, ValueError, KeyError):
@@ -468,7 +472,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
     def exemplo_arquivo(nome: str):
         if not re.fullmatch(r"[\w-]{1,80}\.(mp4|jpg)", nome):
             raise HTTPException(404, "Não encontrado.")
-        p = Path(cfg.dados) / "exemplos" / nome
+        p = fila.espelho(cfg).garantir(Path(cfg.dados) / "exemplos" / nome)
         if not p.is_file():
             raise HTTPException(404, "Não encontrado.")
         return FileResponse(p, media_type="video/mp4" if nome.endswith(".mp4") else "image/jpeg", headers={"Cache-Control": "public, max-age=3600"})
@@ -575,9 +579,14 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
             t = db.um("SELECT * FROM trabalhos WHERE id=? AND usuario=?", (q["de"], u["id"]))
             if not t or t["estado"] != "pronto":
                 raise HTTPException(404, "Vídeo não encontrado.")
-            arq = editor.arquivo_do_pedido(fila.pasta_trabalho(cfg, t["id"]), json.loads(t["resultado"]), int(q.get("k") or 1))
+            res_t = json.loads(t["resultado"])
+            for c_ in res_t.get("cortes", []):
+                if c_.get("k") == int(q.get("k") or 1) and c_.get("arquivo"):
+                    fila.espelho(cfg).garantir(fila.pasta_trabalho(cfg, t["id"]) / c_["arquivo"])
+            arq = editor.arquivo_do_pedido(fila.pasta_trabalho(cfg, t["id"]), res_t, int(q.get("k") or 1))
         else:
             arq = await editor.receber(request, Path(cfg.dados) / "uploads", u["id"])
+            fila.espelho(cfg).guardar(arq)  # o vídeo do cliente também fica no MinIO
         entrada = {"arquivo": str(arq), "opcoes": editor.opcoes(q), "perfil": perfil_montagem(u)}
         tid = fila.criar(db, u["id"], "editar", entrada, fila.prioridade_de(u))
         return pedido_publico(db.um("SELECT * FROM trabalhos WHERE id=?", (tid,)), u)
@@ -716,7 +725,7 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
     def post_capa(pid: int, request: Request):
         u = usuario(request)
         p = db.um("SELECT capa FROM posts WHERE id=? AND usuario=?", (pid, u["id"]))
-        if not p or not p["capa"] or not Path(p["capa"]).exists():
+        if not p or not p["capa"] or not fila.espelho(cfg).garantir(Path(p["capa"])).exists():
             raise HTTPException(404, "Sem capa.")
         return FileResponse(p["capa"], media_type="image/jpeg")
 
