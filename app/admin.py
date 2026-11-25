@@ -155,4 +155,7 @@ def rotas(db: Banco, segredo: str, consulta_clientes: str, usuario: str | None =
             raise HTTPException(404, "versão não encontrada")
         return h
 
+    from produtos_core import admin_usuarios  # aba Usuários do admin padrão (spec 57 §5.1)
+    admin_usuarios.registrar(r, db, checar)
+    r.checar = checar  # outras rotas do produto usam o mesmo login
     return r

@@ -32,6 +32,7 @@ class Config:
     smtp_senha: str = ""
     smtp_from: str = "Viralizaí <contato@rangeltech.net>"
     cakto_segredo: str = ""
+    cakto_segredo_fael: str = ""   # webhook da conta Cakto do Adriano (landing do Fael), spec 57 §4.4
     checkout_mensal: str = ""
     max_duracao_s: int = 6 * 3600
     max_cortes: int = 10
@@ -41,6 +42,7 @@ class Config:
     yt_cookies: str = "/data/yt_cookies.txt"
     dev: bool = False
     checkouts: dict = field(default_factory=dict)          # {"corte": url, "animacao": url, ..., "m5": url}
+    checkouts_fael: dict = field(default_factory=dict)     # links da conta do Adriano; só planos
     planos_por_produto: dict = field(default_factory=dict)  # {"<id do produto Cakto>": "corte" | "m5" ...}
     lancamento_ate: str = "2026-12-31"
     admin_key: str = ""
@@ -76,6 +78,7 @@ def carregar() -> Config:
         smtp_senha=os.environ.get("SMTP_PASSWORD", ""),
         smtp_from=_e("SMTP_FROM", "Viralizaí <contato@rangeltech.net>"),
         cakto_segredo=_e("CAKTO_SEGREDO", ""),
+        cakto_segredo_fael=_e("CAKTO_SEGREDO_FAEL", ""),
         max_duracao_s=int(_e("MAX_DURACAO_S", str(6 * 3600))),
         max_cortes=int(_e("MAX_CORTES", "10")),
         workers=int(_e("WORKERS", "2")),
@@ -84,6 +87,7 @@ def carregar() -> Config:
         yt_cookies=_e("YT_COOKIES", "/data/yt_cookies.txt"),
         dev=_e("DEV", "") == "1",
         checkouts=json.loads(_e("CHECKOUTS", "") or "{}"),
+        checkouts_fael=json.loads(_e("CHECKOUTS_FAEL", "") or "{}"),
         planos_por_produto=json.loads(_e("PLANOS_CAKTO", "") or "{}"),
         lancamento_ate=_e("LANCAMENTO_ATE", "2026-12-31"),
         admin_key=_e("ADMIN_KEY", ""),

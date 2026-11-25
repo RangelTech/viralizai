@@ -20,6 +20,9 @@ PACOTES_MOEDAS = {
     "m15": {"moedas": 15, "preco": 24.90},
     "m35": {"moedas": 35, "preco": 49.90, "destaque": "melhor preço"},
 }
+# Landing do Fael (conta Cakto do Adriano, ordem do Lucas 25/11): sem preço de lançamento, sem pacotes de vídeo
+PRECOS_FAEL = {"corte": 29.90, "animacao": 49.90, "viral": 99.90, "piloto": 119.90}
+
 TESTE = {"cortes": 1}  # teste grátis: 1 prévia de 1 corte (não baixa, não posta)
 LIMITE_USOS_DIA = 20   # vitrine: cada corte base pode ser usado até 20x por dia (anti-duplicado)
 QUANTOS = (1, 3, 5, 10)

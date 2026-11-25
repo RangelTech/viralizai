@@ -184,7 +184,12 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
         return {"avisos": itens}
 
     @app.get("/api/planos")
-    def planos_lista():
+    def planos_lista(request: Request):
+        u = usuario(request, obrigatorio=False)
+        if eh_fael(request) or (u and u.get("origem") == "fael"):
+            return {"planos": [{"codigo": k, **{c: x for c, x in v.items() if c != "lancamento"}, "preco": planos.PRECOS_FAEL.get(k, v["preco"]),
+                                "checkout": cfg.checkouts_fael.get(k) or ""} for k, v in planos.PLANOS.items()],
+                    "adicionais": [], "moedas": []}
         return {"planos": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or "", "lancamento_ate": cfg.lancamento_ate} for k, v in planos.PLANOS.items()],
                 "adicionais": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or ""} for k, v in planos.ADICIONAIS.items()],
                 "moedas": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or ""} for k, v in planos.PACOTES_MOEDAS.items()]}
@@ -769,7 +774,8 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
             b = json.loads(cru)
         except ValueError:
             raise HTTPException(400, "json")
-        if not cfg.cakto_segredo or not hmac.compare_digest(str(b.get("secret") or ""), cfg.cakto_segredo):
+        segredo = str(b.get("secret") or "")
+        if not any(s and hmac.compare_digest(segredo, s) for s in (cfg.cakto_segredo, cfg.cakto_segredo_fael)):
             raise HTTPException(401, "segredo")
         evento = str(b.get("event") or "")
         dados = b.get("data") or {}

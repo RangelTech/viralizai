@@ -389,3 +389,27 @@ def test_cacador_varios_posts_por_dia_e_limite_do_plano(cli):
     assert cacador.agendar_posts_do_pedido(db, c.app.state.cfg, t, res) == 2  # pediu 3 por dia, o vídeo rendeu 2: posta 2
     q = [x["quando"] for x in db.todos("SELECT quando FROM posts ORDER BY quando")]
     assert len(q) == 2 and 3000 < q[1] - q[0] < 86400  # no mesmo dia, espaçados (não 1 por dia)
+
+
+def test_landing_fael_conta_adriano(tmp_path):
+    """Spec 57 §4.4: a landing do Fael vende pela conta Cakto do Adriano (preços próprios, só planos) e o webhook aceita os dois segredos."""
+    from fastapi.testclient import TestClient
+    from app.config import Config
+    from app.main import criar_app
+    cfg = Config(dados=str(tmp_path), dev=True, cakto_segredo="seg-lucas", cakto_segredo_fael="seg-adriano",
+                 planos_por_produto={"p-corte": "corte", "a-viral": "viral"}, checkouts={"corte": "https://pay.cakto.com.br/lucas"},
+                 checkouts_fael={"corte": "https://pay.cakto.com.br/adri-corte", "viral": "https://pay.cakto.com.br/adri-viral"})
+    c = TestClient(criar_app(cfg, iniciar_fila=False))
+    nosso = c.get("/api/planos").json()
+    assert nosso["planos"][0]["checkout"].endswith("/lucas") and nosso["moedas"]
+    fael = c.get("/api/planos", headers={"host": "viralizai.fael.rangeltech.net"}).json()
+    precos = {p["codigo"]: p["preco"] for p in fael["planos"]}
+    assert precos == {"corte": 29.90, "animacao": 49.90, "viral": 99.90, "piloto": 119.90}
+    assert fael["planos"][0]["checkout"].endswith("/adri-corte") and "lancamento" not in fael["planos"][0]
+    assert fael["moedas"] == [] and fael["adicionais"] == []
+    ev = {"secret": "seg-adriano", "event": "purchase_approved", "data": {"id": "a1", "customer": {"email": "fa@t.com"}, "product": {"id": "a-viral"}}}
+    assert c.post("/api/cakto", json=ev).json()["plano"] == "viral"
+    ev2 = {**ev, "secret": "seg-lucas", "data": {**ev["data"], "id": "l1", "product": {"id": "p-corte"}}}
+    assert c.post("/api/cakto", json=ev2).json()["plano"] == "corte"
+    assert c.post("/api/cakto", json={**ev, "secret": "outro", "data": {**ev["data"], "id": "x"}}).status_code == 401
+    assert "19,90" not in c.get("/", headers={"host": "viralizai.fael.rangeltech.net"}).text
