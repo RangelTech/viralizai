@@ -41,6 +41,24 @@
     } catch (e) { el.innerHTML = '<p class="msg erro">' + esc(e.message) + '</p>' }
   }
   const msg = (t, erro) => { const m = $('#u-msg'); m.textContent = t; m.className = 'msg' + (erro ? ' erro' : ' ok') }
+  // aba "Planos" (só leitura): plano -> checkout, oferta e produto da Cakto, como estão no Infisical do produto
+  nav.insertAdjacentHTML('beforeend', '<button data-aba="planos" aria-selected="false">Planos</button>')
+  main.insertAdjacentHTML('beforeend', `<section data-p="planos" hidden><div class="msg">Preço e oferta mudam na Cakto; o link e o mapa ficam no Infisical do produto.</div>
+    <div class="lista" id="p-lista"></div></section>`)
+  nav.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-aba="planos"]'); if (!b) return
+    document.querySelectorAll('[data-aba]').forEach((x) => x.setAttribute('aria-selected', String(x === b)))
+    document.querySelectorAll('[data-p]').forEach((p) => (p.hidden = p.dataset.p !== 'planos'))
+    const el = $('#p-lista'); el.innerHTML = '<p class="msg">Carregando…</p>'
+    try {
+      const j = await api('/api/painel/planos')
+      el.innerHTML = j.planos.length ? j.planos.map((p) => `<div class="item" style="display:flex;flex-wrap:wrap;gap:12px;padding:10px 0;border-bottom:1px solid var(--bd)">
+        <b style="width:160px">${esc(p.plano)}</b>
+        ${p.checkout ? `<a href="${esc(p.checkout)}" target="_blank" rel="noopener">${esc(p.checkout)}</a>` : '<small>sem link de checkout</small>'}
+        <small>${p.produtos_cakto.length ? 'produto Cakto ' + p.produtos_cakto.map(esc).join(', ') : 'sem produto na Cakto'}</small></div>`).join('')
+        : '<p class="msg">Este produto não vende planos pela Cakto.</p>'
+    } catch (err) { el.innerHTML = '<p class="msg erro">' + esc(err.message) + '</p>' }
+  })
   // o admin liga as abas no carregamento, antes deste botão existir: a troca para "Usuários" é feita aqui
   nav.addEventListener('click', (e) => {
     const b = e.target.closest('[data-aba="usuarios"]'); if (!b) return
