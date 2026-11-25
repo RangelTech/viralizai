@@ -191,7 +191,8 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
             return {"planos": [{"codigo": k, **{c: x for c, x in v.items() if c != "lancamento"}, "preco": planos.PRECOS_FAEL.get(k, v["preco"]),
                                 "checkout": cfg.checkouts_fael.get(k) or "", "direto": bool(cfg.checkouts_fael.get(k))} for k, v in planos.PLANOS.items()],
                     "adicionais": [], "moedas": []}
-        return {"planos": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or "", "lancamento_ate": cfg.lancamento_ate} for k, v in planos.PLANOS.items()],
+        return {"planos": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or "", "direto": bool(cfg.checkouts.get(k)), "lancamento_ate": cfg.lancamento_ate}
+                           for k, v in planos.PLANOS.items()],
                 "adicionais": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or ""} for k, v in planos.ADICIONAIS.items()],
                 "moedas": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or ""} for k, v in planos.PACOTES_MOEDAS.items()]}
 

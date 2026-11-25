@@ -54,6 +54,11 @@
   modal.innerHTML = `<div class="mv-caixa"><button class="mv-fechar" aria-label="Fechar">✕</button><video playsinline controls></video>
     <b class="mv-titulo"></b><a class="btn pulsa mv-cta1" href="/entrar"><u-i class=i-send></u-i> QUERO POSTAR ESSE VÍDEO NO MEU CANAL AGORA</a>
     <a class="btn sec mv-cta2" href="/entrar"><u-i class=i-sparkles></u-i> Quero fazer vídeos assim</a><small>Teste grátis: 1 corte com o seu @, sem cartão.</small></div>`;
+  if (location.hostname.includes("fael")) {  // landing do Fael: tudo leva aos planos (checkout direto)
+    modal.querySelectorAll('a[href="/entrar"]').forEach((x) => (x.href = "#planos-sec"));
+    const nota = modal.querySelector("small"); if (nota) nota.textContent = "Escolhe o plano, paga e o acesso chega no seu e-mail.";
+    modal.querySelectorAll("a").forEach((x) => x.addEventListener("click", () => fechar()));
+  }
   document.body.appendChild(modal);
   const mv = modal.querySelector("video");
   const fechar = () => { modal.classList.remove("aberto"); mv.pause(); mv.removeAttribute("src"); mv.load(); document.body.style.overflow = ""; };
