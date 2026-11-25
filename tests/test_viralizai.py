@@ -451,3 +451,19 @@ def test_compra_direta_pela_landing_do_fael_cria_conta_e_manda_acesso(tmp_path, 
     nav = TestClient(app)
     assert nav.get(link, follow_redirects=False).status_code == 303
     assert nav.get("/api/conta").json()["plano"] == "viral"
+
+
+def test_apagar_usuario_leva_os_arquivos(cli):
+    """Spec 57 §5.1: pedidos, vídeo enviado e posts agendados do usuário somem junto (disco e MinIO)."""
+    from pathlib import Path
+    from app import auth, fila
+    c, db = cli
+    app = c.app; cfg = app.state.cfg
+    u = auth.usuario_por_email(db, "some@t.com")
+    up = Path(cfg.dados) / "uploads"; up.mkdir(parents=True, exist_ok=True)
+    enviado = up / f"ed_{u['id']}_x.mp4"; enviado.write_bytes(b"x" * 10)
+    tid = fila.criar(db, u["id"], "editar", {"arquivo": str(enviado)})
+    pasta = fila.pasta_trabalho(cfg, tid); pasta.mkdir(parents=True, exist_ok=True); (pasta / "corte1.mp4").write_bytes(b"x")
+    posts = Path(cfg.dados) / "posts" / str(u["id"]); posts.mkdir(parents=True); (posts / "p.mp4").write_bytes(b"x")
+    assert app.state.apagar_arquivos_usuario(u) == 3
+    assert not pasta.exists() and not enviado.exists() and not posts.exists()

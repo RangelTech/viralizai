@@ -37,6 +37,24 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
     admin.preparar(db)
     app = FastAPI(title="Viralizaí", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.cfg, app.state.db = cfg, db
+
+    def apagar_arquivos_usuario(u: dict) -> int:
+        """Apagar usuário no /admin (spec 57 §5.1): pasta de cada pedido e o vídeo que ele enviou e os posts agendados, no disco e no MinIO."""
+        esp, uploads, n = fila.espelho(cfg), (Path(cfg.dados) / "uploads").resolve(), 0
+        for t in db.todos("SELECT id, entrada FROM trabalhos WHERE usuario=?", (u["id"],)):
+            esp.apagar_pasta(fila.pasta_trabalho(cfg, t["id"])); n += 1
+            try:
+                ent = json.loads(t["entrada"] or "{}") or {}
+            except ValueError:
+                ent = {}
+            for chave in ("upload", "arquivo"):
+                arq = ent.get(chave)
+                if isinstance(arq, str) and arq and Path(arq).resolve().is_relative_to(uploads):
+                    esp.apagar(arq); n += 1
+        esp.apagar_pasta(Path(cfg.dados) / "posts" / str(u["id"])); n += 1
+        return n
+
+    app.state.apagar_arquivos_usuario = apagar_arquivos_usuario
     if cfg.demo_email:  # conta de demonstração: Piloto Automático sempre ativo
         u = auth.usuario_por_email(db, cfg.demo_email.lower())
         db.exec("UPDATE usuarios SET plano='piloto', ativo_ate=?, onboarding=1, moedas=MAX(moedas,10), nome=COALESCE(nome,'Demo'), "

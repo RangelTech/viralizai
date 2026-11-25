@@ -30,6 +30,13 @@
           <input data-campo="dias" type="number" min="0" max="3650" placeholder="dias" style="width:80px">
           <button class="btn" data-acao="salvar">Salvar</button>
           ${u.qa ? '' : '<button class="btn" data-acao="apagar">Apagar</button>'}
+          ${u.canais ? `<div style="flex-basis:100%;display:grid;gap:6px;padding-left:16px">${u.canais.map((k) => `
+            <div data-canal="${esc(k.canal)}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <small style="width:90px">canal <b>${esc(k.canal)}</b></small>
+              <small style="width:150px">${k.ativo ? 'ativo até ' + data(k.ativo_ate) : 'sem plano ativo'}</small>
+              <input data-campo="plano" value="${esc(k.plano || '')}" placeholder="plano" style="width:110px">
+              <input data-campo="dias" type="number" min="0" max="3650" placeholder="dias" style="width:80px">
+              <button class="btn" data-acao="salvar-canal">Salvar canal</button></div>`).join('')}</div>` : ''}
         </div>`).join('') + `<p class="msg">${j.total} usuário(s)</p>`
     } catch (e) { el.innerHTML = '<p class="msg erro">' + esc(e.message) + '</p>' }
   }
@@ -46,7 +53,11 @@
     const b = e.target.closest('[data-acao]'); if (!b) return
     const linha = b.closest('[data-u]'), id = linha.dataset.u, email = $('b', linha).textContent
     try {
-      if (b.dataset.acao === 'salvar') {
+      if (b.dataset.acao === 'salvar-canal') {
+        const cx = b.closest('[data-canal]'), corpo = { canal: cx.dataset.canal, plano: $('[data-campo=plano]', cx).value.trim() }
+        const d = $('[data-campo=dias]', cx).value; if (d !== '') corpo.dias = Number(d)
+        await api('/api/painel/usuarios/' + id, { method: 'PUT', body: JSON.stringify(corpo) }); msg('Salvo: ' + email + ' (' + corpo.canal + ')')
+      } else if (b.dataset.acao === 'salvar') {
         const corpo = { plano: $('[data-campo=plano]', linha).value.trim() }
         const d = $('[data-campo=dias]', linha).value; if (d !== '') corpo.dias = Number(d)
         await api('/api/painel/usuarios/' + id, { method: 'PUT', body: JSON.stringify(corpo) }); msg('Salvo: ' + email)
