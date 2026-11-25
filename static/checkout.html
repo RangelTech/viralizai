@@ -12,6 +12,7 @@
 <style>
   /* Checkout transparente (ordem do Lucas 25/11): Fael no fundo mostrando o banco, formulário na frente. */
   body{min-height:100svh}
+  .caixa section{padding:0;background:none}
   .fundo-ck{position:fixed;inset:0;background:url('/s/img/checkout_fundo.webp?v=1') 78% 12%/cover no-repeat;z-index:0}
   .fundo-ck::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 0,rgba(11,6,20,.92) 38%,rgba(11,6,20,.35) 62%,rgba(11,6,20,0) 80%)}
   .ck{position:relative;z-index:1;min-height:100svh;display:flex;align-items:center;padding:96px 6vw 48px}
