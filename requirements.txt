@@ -8,3 +8,4 @@ numpy>=1.26,<3
 faster-whisper==1.2.1
 ai-edge-litert==2.3.0
 produtos-core @ https://github.com/RangelTech/produtos-core/archive/refs/tags/v0.1.24.tar.gz
+segno==1.6.1

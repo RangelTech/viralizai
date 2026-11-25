@@ -6,6 +6,7 @@ import hmac
 import json
 import logging
 import os
+import asyncio
 import re
 import secrets
 import time
@@ -15,7 +16,7 @@ from fastapi import FastAPI, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
-from app import admin, auth, avisos, fila, mailer, planos, senha_rotas  # noqa: F401
+from app import admin, auth, avisos, fila, mailer, pagamento, planos, senha_rotas  # noqa: F401
 from produtos_core import acesso, armazenamento
 from app.config import Config, carregar
 from app.db import Banco, agora
@@ -209,8 +210,10 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
             lista = []
             for k, ck, extra in planos.LISTA_FAEL:
                 v = {c: x for c, x in planos.PLANOS[k].items() if c not in ("lancamento", "so_fael")}
-                lista.append({"codigo": k, **v, **extra, "preco": planos.PRECOS_FAEL[k],
-                              "checkout": cfg.checkouts_fael.get(ck) or "", "direto": bool(cfg.checkouts_fael.get(ck))})
+                link = cfg.checkouts_fael.get(ck) or ""
+                if link and pag_fael.configurado:
+                    link = f"/checkout/{k}"  # checkout transparente (página nossa, API da Cakto do Adriano)
+                lista.append({"codigo": k, **v, **extra, "preco": planos.PRECOS_FAEL[k], "checkout": link, "direto": bool(link)})
             return {"planos": lista, "adicionais": [], "moedas": []}
         return {"planos": [{"codigo": k, **v, "checkout": cfg.checkouts.get(k) or "", "direto": bool(cfg.checkouts.get(k)), "lancamento_ate": cfg.lancamento_ate}
                            for k, v in planos.PLANOS.items() if not v.get("so_fael")],
@@ -911,6 +914,71 @@ def criar_app(cfg: Config | None = None, iniciar_fila: bool = True) -> FastAPI:
 
     app.include_router(admin.rotas(db, cfg.segredo_sessao, """SELECT email, nome, criado, plano, ativo_ate, moedas, (ativo_ate > strftime('%s','now')) ativo
         FROM usuarios ORDER BY criado DESC""", seguro=not cfg.dev))
+
+    # ------------------------------------------------ checkout transparente (ordem do Lucas 25/11)
+    pag_fael = getattr(app.state, "pag_fael", None) or pagamento.Cakto(cfg.cakto_fael_client_id, cfg.cakto_fael_client_secret,
+                                                                       getattr(cfg, "cakto_transport", None))
+    app.state.pag_fael = pag_fael
+    tentativas: dict[str, list[float]] = {}
+
+    def oferta_fael(plano: str) -> tuple[dict, str]:
+        for k, ck, extra in planos.LISTA_FAEL:
+            if k == plano:
+                link = cfg.checkouts_fael.get(ck) or ""
+                if not link:
+                    break
+                p = {c: x for c, x in planos.PLANOS[k].items() if c not in ("lancamento", "so_fael")}
+                return {"codigo": k, **p, **extra, "preco": planos.PRECOS_FAEL[k]}, link.rstrip("/").rsplit("/", 1)[-1]
+        raise HTTPException(404, "plano não encontrado")
+
+    def ip_de(request: Request) -> str:
+        return (request.headers.get("cf-connecting-ip") or (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+                or (request.client.host if request.client else ""))
+
+    @app.get("/checkout/{plano}", response_class=HTMLResponse)
+    def checkout_pagina(plano: str):
+        oferta_fael(plano)
+        return FileResponse(ESTATICO / "checkout.html")
+
+    @app.get("/api/checkout/{plano}")
+    def checkout_dados(plano: str):
+        p, _ = oferta_fael(plano)
+        return {"plano": p, "sdk_client_id": cfg.cakto_fael_client_id, "ativo": pag_fael.configurado}
+
+    @app.post("/api/checkout/{plano}/pagar")
+    async def checkout_pagar(plano: str, request: Request):
+        p, oferta = oferta_fael(plano)
+        if not pag_fael.configurado:
+            raise HTTPException(503, "O pagamento está indisponível agora.")
+        ip = ip_de(request)
+        agora_ = time.time()
+        lst = [t for t in tentativas.get(ip, []) if t > agora_ - 600]
+        if len(lst) >= 8:
+            raise HTTPException(429, "Muitas tentativas. Espera uns minutos e tenta de novo.")
+        tentativas[ip] = lst + [agora_]
+        b = await request.json()
+        try:
+            corpo = pagamento.montar(oferta, str(b.get("metodo") or ""), b.get("cliente") or {}, str(b.get("fingerprint") or ""), ip,
+                                     str(b.get("card_token") or ""), str(b.get("antifraude") or ""), int(b.get("parcelas") or 1))
+            r = pagamento.resumo(await asyncio.to_thread(pag_fael.criar, corpo))
+        except pagamento.PagamentoErro as e:
+            raise HTTPException(e.status, str(e))
+        if r.get("pix"):
+            import segno
+            r["pix"]["qr_svg"] = segno.make(r["pix"]["copia_e_cola"], error="m").svg_inline(scale=6, dark="#0b0614", light="#ffffff")
+        log.info("checkout: %s %s %s -> %s", plano, corpo["paymentMethod"], r.get("id"), r.get("status"))
+        return r
+
+    @app.get("/api/checkout/status/{pid}")
+    async def checkout_status(pid: str):
+        if not re.fullmatch(r"[0-9a-f-]{32,40}", pid):
+            raise HTTPException(404, "pagamento não encontrado")
+        try:
+            p = await asyncio.to_thread(pag_fael.pedido, pid)
+        except pagamento.PagamentoErro as e:
+            raise HTTPException(e.status, str(e))
+        st = p.get("status")
+        return {"status": st, "pago": st in pagamento.PAGO, "recusado": st in pagamento.RECUSADO}
 
     # ------------------------------------------------ páginas
     def eh_fael(request: Request) -> bool:

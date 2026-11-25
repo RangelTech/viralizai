@@ -43,6 +43,8 @@ class Config:
     dev: bool = False
     checkouts: dict = field(default_factory=dict)          # {"corte": url, "animacao": url, ..., "m5": url}
     checkouts_fael: dict = field(default_factory=dict)     # links da conta do Adriano; só planos
+    cakto_fael_client_id: str = ""      # API da Cakto do Adriano: checkout transparente (o client_id também vai ao SDK do navegador)
+    cakto_fael_client_secret: str = ""
     planos_por_produto: dict = field(default_factory=dict)  # {"<id do produto Cakto>": "corte" | "m5" ...}
     lancamento_ate: str = "2026-12-31"
     admin_key: str = ""
@@ -88,6 +90,8 @@ def carregar() -> Config:
         dev=_e("DEV", "") == "1",
         checkouts=json.loads(_e("CHECKOUTS", "") or "{}"),
         checkouts_fael=json.loads(_e("CHECKOUTS_FAEL", "") or "{}"),
+        cakto_fael_client_id=_e("CAKTO_FAEL_CLIENT_ID", ""),
+        cakto_fael_client_secret=_e("CAKTO_FAEL_CLIENT_SECRET", ""),
         planos_por_produto=json.loads(_e("PLANOS_CAKTO", "") or "{}"),
         lancamento_ate=_e("LANCAMENTO_ATE", "2026-12-31"),
         admin_key=_e("ADMIN_KEY", ""),

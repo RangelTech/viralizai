@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Viralizaí · Assinar</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/s/landing.css?v=7">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<style>
+  /* Checkout transparente (ordem do Lucas 25/11): Fael no fundo mostrando o banco, formulário na frente. */
+  body{min-height:100svh}
+  .fundo-ck{position:fixed;inset:0;background:url('/s/img/checkout_fundo.webp?v=1') 78% 12%/cover no-repeat;z-index:0}
+  .fundo-ck::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 0,rgba(11,6,20,.92) 38%,rgba(11,6,20,.35) 62%,rgba(11,6,20,0) 80%)}
+  .ck{position:relative;z-index:1;min-height:100svh;display:flex;align-items:center;padding:96px 6vw 48px}
+  .caixa{width:min(480px,100%);background:rgba(22,13,36,.88);backdrop-filter:blur(14px);border:1px solid var(--linha);border-radius:24px;padding:28px;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+  .caixa h1{font-family:Anton,sans-serif;text-transform:uppercase;font-size:34px;line-height:1.05;margin:0 0 6px}
+  .caixa h1 .cor{color:var(--cor)}
+  .preco{font-family:Anton,sans-serif;font-size:44px;line-height:1;margin:10px 0 4px}.preco small{font-family:Inter,sans-serif;font-size:16px;color:var(--txt2)}
+  .itens{margin:10px 0 18px;padding:0;list-style:none;color:var(--txt2);font-size:15px}.itens li{padding:3px 0}.itens li::before{content:"✓ ";color:#5df28f;font-weight:900}
+  label{display:block;font-size:14px;font-weight:700;margin:12px 0 6px}
+  input,select{width:100%;min-height:50px;border-radius:12px;border:1px solid var(--linha);background:#0f0819;color:var(--txt);padding:0 14px;font:inherit;font-size:16px}
+  input:focus,select:focus{outline:2px solid var(--cor);outline-offset:1px}
+  .duas{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .abas{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:20px 0 4px;background:#0f0819;border:1px solid var(--linha);border-radius:14px;padding:5px}
+  .abas button{min-height:44px;border:0;border-radius:10px;background:transparent;color:var(--txt2);font:inherit;font-weight:800;cursor:pointer}
+  .abas button[aria-pressed=true]{background:var(--cor);color:#fff}
+  .msg{min-height:22px;margin:12px 0 0;font-size:14px;font-weight:700}.msg.erro{color:#ff6b8b}
+  .btn{width:100%;margin-top:16px}
+  .seguro{margin-top:14px;font-size:13px;color:var(--txt2);text-align:center}
+  .pix{text-align:center}.pix .qr{background:#fff;border-radius:16px;padding:12px;display:inline-block;margin:10px 0}.pix .qr svg{display:block;width:220px;height:220px}
+  .copia{display:flex;gap:8px;margin-top:8px}.copia input{font-size:12px}.copia button{min-width:110px;border:0;border-radius:12px;background:#2a1a40;color:#fff;font-weight:800;cursor:pointer}
+  .espera{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;color:var(--txt2);font-weight:700}
+  .bolinha{width:10px;height:10px;border-radius:50%;background:var(--cor);animation:pulsa 1.2s infinite}
+  .ok{text-align:center}.ok .grande{font-size:64px}
+  [hidden]{display:none!important}
+  @media(max-width:799px){
+    .fundo-ck{position:relative;height:56svh;background-position:86% 10%}
+    .fundo-ck::after{background:linear-gradient(180deg,rgba(11,6,20,0) 55%,var(--bg) 100%)}
+    .ck{padding:0 16px 40px;margin-top:-60px;min-height:0}
+  }
+</style>
+</head>
+<body class="vice">
+<nav class="top"><a class="logo" href="/" style="text-decoration:none;color:inherit"><i></i><span>Viraliz<b>aí</b></span></a></nav>
+<div class="fundo-ck" role="img" aria-label="Fael mostrando o saldo da conta no celular"></div>
+<main class="ck">
+  <div class="caixa">
+    <section id="v-form">
+      <h1>Assinar <span class="cor" id="p-nome">…</span></h1>
+      <div class="preco" id="p-preco">…</div>
+      <ul class="itens" id="p-itens"></ul>
+      <form id="f" novalidate>
+        <label for="nome">Nome completo</label><input id="nome" autocomplete="name" required>
+        <label for="email">E-mail (o acesso chega aqui)</label><input id="email" type="email" autocomplete="email" required>
+        <div class="duas">
+          <div><label for="whats">WhatsApp</label><input id="whats" inputmode="tel" autocomplete="tel" placeholder="(62) 99999-9999" required></div>
+          <div><label for="cpf">CPF</label><input id="cpf" inputmode="numeric" placeholder="000.000.000-00" required></div>
+        </div>
+        <div class="abas" role="group" aria-label="Forma de pagamento">
+          <button type="button" data-m="pix" aria-pressed="true">Pix</button>
+          <button type="button" data-m="credit_card" aria-pressed="false">Cartão</button>
+        </div>
+        <div id="cartao" hidden>
+          <label for="cnum">Número do cartão</label><input id="cnum" inputmode="numeric" autocomplete="cc-number" placeholder="0000 0000 0000 0000">
+          <label for="cnome">Nome impresso no cartão</label><input id="cnome" autocomplete="cc-name">
+          <div class="duas">
+            <div><label for="cval">Validade</label><input id="cval" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA"></div>
+            <div><label for="ccvv">CVV</label><input id="ccvv" inputmode="numeric" autocomplete="cc-csc" placeholder="123"></div>
+          </div>
+        </div>
+        <div class="msg" id="msg" role="status"></div>
+        <button class="btn pulsa" id="pagar" type="submit">PAGAR</button>
+        <div class="seguro">Pagamento seguro processado pela Cakto · 7 dias de garantia · cancela quando quiser</div>
+      </form>
+    </section>
+    <section id="v-pix" class="pix" hidden>
+      <h1>Paga com <span class="cor">Pix</span></h1>
+      <p style="color:var(--txt2);margin:4px 0 0">Abre o app do banco, escolhe Pix e aponta para o código, ou copia e cola.</p>
+      <div class="qr" id="qr"></div>
+      <div class="copia"><input id="copia" readonly aria-label="Pix copia e cola"><button type="button" id="copiar">Copiar</button></div>
+      <div class="espera"><span class="bolinha"></span> Esperando o pagamento…</div>
+    </section>
+    <section id="v-ok" class="ok" hidden>
+      <div class="grande">🎉</div>
+      <h1>Pagamento <span class="cor">aprovado!</span></h1>
+      <p style="color:var(--txt2)">Seu acesso chegou no e-mail <b id="ok-email"></b>. É só clicar em <b>Entrar agora</b> no e-mail.</p>
+      <a class="btn pulsa" href="/entrar">ABRIR O APP</a>
+    </section>
+  </div>
+</main>
+<script src="https://cakto-sdk.pages.dev/cakto-sdk.min.js"></script>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s)
+  const plano = location.pathname.split('/').filter(Boolean).pop()
+  const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
+  const dig = (s) => String(s || '').replace(/\D/g, '')
+  let metodo = 'pix', sdk = null, preco = 0
+  let fp = ''
+  try { fp = localStorage.getItem('vz_fp') || '' } catch {}
+  if (!fp) { fp = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)).replace(/[^\w-]/g, ''); try { localStorage.setItem('vz_fp', fp) } catch {} }
+  const msg = (t, erro) => { const m = $('#msg'); m.textContent = t || ''; m.className = 'msg' + (erro ? ' erro' : '') }
+
+  fetch('/api/checkout/' + plano).then((r) => r.ok ? r.json() : Promise.reject()).then((j) => {
+    const p = j.plano; preco = p.preco
+    $('#p-nome').textContent = p.nome; $('#p-preco').innerHTML = brl(p.preco) + '<small>/mês</small>'
+    $('#p-itens').innerHTML = (p.itens || []).map((i) => '<li>' + i.replace(/</g, '&lt;') + '</li>').join('')
+    $('#pagar').textContent = 'PAGAR ' + brl(p.preco)
+    if (j.sdk_client_id && window.Cakto) {
+      try { sdk = new Cakto.CaktoSDK({ client_id: j.sdk_client_id }); sdk.initAntifraud() } catch (e) { sdk = null }
+    }
+    if (!j.ativo) msg('O pagamento está indisponível agora. Tenta de novo em instantes.', true)
+  }).catch(() => { location.href = '/#planos-sec' })
+
+  document.querySelectorAll('.abas button').forEach((b) => b.onclick = () => {
+    metodo = b.dataset.m
+    document.querySelectorAll('.abas button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+    $('#cartao').hidden = metodo !== 'credit_card'; msg('')
+  })
+  const mascara = (el, f) => el.addEventListener('input', () => { el.value = f(dig(el.value)) })
+  mascara($('#cpf'), (d) => d.slice(0, 11).replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'))
+  mascara($('#whats'), (d) => d.slice(0, 11).replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d{1,4})$/, '$1-$2'))
+  mascara($('#cnum'), (d) => d.slice(0, 19).replace(/(\d{4})(?=\d)/g, '$1 '))
+  mascara($('#cval'), (d) => d.slice(0, 4).replace(/(\d{2})(\d)/, '$1/$2'))
+  mascara($('#ccvv'), (d) => d.slice(0, 4))
+  $('#copiar').onclick = async () => { try { await navigator.clipboard.writeText($('#copia').value); $('#copiar').textContent = 'Copiado!' } catch { $('#copia').select() } }
+
+  async function esperar(id) {
+    for (let i = 0; i < 360; i++) {
+      await new Promise((r) => setTimeout(r, 5000))
+      try {
+        const s = await fetch('/api/checkout/status/' + id).then((r) => r.json())
+        if (s.pago) return sucesso()
+        if (s.recusado) { $('#v-pix').hidden = true; $('#v-form').hidden = false; return msg('O pagamento não foi aprovado. Tenta de novo.', true) }
+      } catch {}
+    }
+  }
+  function sucesso() {
+    $('#v-form').hidden = true; $('#v-pix').hidden = true; $('#v-ok').hidden = false; $('#ok-email').textContent = $('#email').value.trim()
+    try { sdk && sdk.cleanupAntifraud && sdk.cleanupAntifraud() } catch {}
+  }
+
+  $('#f').onsubmit = async (e) => {
+    e.preventDefault(); msg('')
+    const cliente = { nome: $('#nome').value.trim(), email: $('#email').value.trim(), whatsapp: $('#whats').value, cpf: $('#cpf').value }
+    if (cliente.nome.split(/\s+/).length < 2) return msg('Escreve o nome completo.', true)
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cliente.email)) return msg('Confere o e-mail.', true)
+    if (dig(cliente.whatsapp).length < 10) return msg('Confere o WhatsApp com DDD.', true)
+    if (dig(cliente.cpf).length !== 11) return msg('Confere o CPF.', true)
+    const corpo = { metodo, cliente, fingerprint: fp, parcelas: 1 }
+    const b = $('#pagar'); b.disabled = true; const t0 = b.textContent; b.textContent = 'PROCESSANDO…'
+    try {
+      if (metodo === 'credit_card') {
+        if (!sdk) throw new Error('O pagamento com cartão não carregou. Recarrega a página ou paga com Pix.')
+        const [mm, aa] = $('#cval').value.split('/')
+        const n = dig($('#cnum').value)
+        if (n.length < 13 || !mm || !aa || dig($('#ccvv').value).length < 3) throw new Error('Confere os dados do cartão.')
+        const tk = await sdk.createToken({ holderName: $('#cnome').value.trim() || cliente.nome, cardNumber: n, cvv: dig($('#ccvv').value), expMonth: mm.padStart(2, '0'), expYear: aa })
+        await sdk.completeAntifraudProfile()
+        corpo.card_token = tk.cardToken || tk.token || ''
+        corpo.antifraude = sdk.getAntifraudReference()
+      }
+      const r = await fetch('/api/checkout/' + plano + '/pagar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'Não deu para concluir o pagamento. Tenta de novo.')
+      if (j.status === 'paid' || j.status === 'authorized') return sucesso()
+      if (j.pix) {
+        $('#qr').innerHTML = j.pix.qr_svg; $('#copia').value = j.pix.copia_e_cola
+        $('#v-form').hidden = true; $('#v-pix').hidden = false; window.scrollTo({ top: 0, behavior: 'smooth' })
+        return esperar(j.id)
+      }
+      if (['declined', 'refused'].includes(j.status)) throw new Error('O banco não aprovou esse cartão. Confere os dados ou tenta outro, ou paga com Pix.')
+      if (j.id) { msg('Pagamento em análise. Te avisamos por e-mail assim que aprovar.'); return esperar(j.id) }
+      throw new Error('Não deu para concluir o pagamento. Tenta de novo.')
+    } catch (err) { msg(err.message || String(err), true) } finally { b.disabled = false; b.textContent = t0 }
+  }
+})()
+</script>
+</body>
+</html>
