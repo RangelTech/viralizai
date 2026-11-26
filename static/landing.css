@@ -83,7 +83,8 @@ h2.t{font-size:clamp(36px,6vw,64px);margin:0 0 14px}
 .pl ul{padding-left:18px;color:var(--txt2);margin:14px 0 22px;flex:1}
 .pl .btn{min-height:50px;font-size:16px;width:100%}
 /* comparativo (landing do Fael): mesmas linhas nos 3 planos, centralizado */
-.planos.tres{grid-template-columns:repeat(auto-fit,minmax(270px,360px));justify-content:center;gap:20px}
+.planos.tres{grid-template-columns:1fr;gap:20px;max-width:1140px;margin-left:auto;margin-right:auto}
+@media(min-width:860px){.planos.tres{grid-template-columns:repeat(3,minmax(0,1fr))}.planos.tres .pl{padding:24px 20px}.planos.tres .pl ul.cmp li{font-size:14.5px}}
 .centro .t,.centro .lead{text-align:center;margin-left:auto;margin-right:auto}
 .pl ul.cmp{list-style:none;padding:0;margin:18px 0 24px}
 .pl ul.cmp li{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--linha);font-size:15.5px;line-height:1.35}
