@@ -28,11 +28,23 @@ PLANOS["fael_animacao"] = {"nome": "Corte + Animação", "preco": 49.90, "cortes
                            "itens": ["200 cortes por mês", "60 animações por mês", "Editar meu vídeo", "Prontos pra postar"],
                            "destaque": True, "so_fael": True}
 # o que a landing do Fael mostra, nesta ordem: (código, checkout em CHECKOUTS_FAEL, troca de textos)
+# comparativo da landing: as MESMAS linhas nos 3 planos (True = incluso, False = não incluso), para ver o que cada plano a mais traz
+_LINHAS = ["Legenda em português no ritmo da fala", "Editor para ajustar os seus vídeos", "Vídeos prontos para postar"]
 LISTA_FAEL = [
-    ("corte", "corte", {}),
-    ("fael_animacao", "animacao", {}),
-    ("piloto", "piloto", {"itens": ["Tudo do Corte + Animação", "Posta sozinho no TikTok e no Instagram",
-                                    "A IA acha os vídeos do seu tema", "1 post por dia em cada rede, sem repetir"]}),
+    ("corte", "corte", {"comparativo": [["30 cortes por mês", True]] + [[t, True] for t in _LINHAS] + [
+        ["Animações com IA", False], ["Fila prioritária (vídeos prontos mais rápido)", False],
+        ["Postagem automática no TikTok e no Instagram", False], ["A IA encontra vídeos do seu tema", False],
+        ["1 post por dia em cada rede, sem repetir", False]]}),
+    ("fael_animacao", "animacao", {"comparativo": [["200 cortes por mês", True]] + [[t, True] for t in _LINHAS] + [
+        ["60 animações com IA por mês", True], ["Fila prioritária (vídeos prontos mais rápido)", True],
+        ["Postagem automática no TikTok e no Instagram", False], ["A IA encontra vídeos do seu tema", False],
+        ["1 post por dia em cada rede, sem repetir", False]]}),
+    ("piloto", "piloto", {"itens": ["600 cortes e 120 animações por mês", "Posta sozinho no TikTok e no Instagram",
+                                    "A IA encontra vídeos do seu tema", "1 post por dia em cada rede, sem repetir"],
+                          "comparativo": [["600 cortes por mês", True]] + [[t, True] for t in _LINHAS] + [
+        ["120 animações com IA por mês", True], ["Fila mais rápida de todas", True],
+        ["Postagem automática no TikTok e no Instagram", True], ["A IA encontra vídeos do seu tema", True],
+        ["1 post por dia em cada rede, sem repetir", True]]}),
 ]
 
 TESTE = {"cortes": 1}  # teste grátis: 1 prévia de 1 corte (não baixa, não posta)
