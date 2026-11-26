@@ -16,6 +16,18 @@
     $("#res").textContent = "R$ " + Math.round(mes).toLocaleString("pt-BR");
   };
   if (vpd) { vpd.oninput = vw.oninput = calc; calc(); }
+  // planos ao vivo (preço e checkout vêm do servidor): carregam JÁ, sem esperar as vitrines de vídeo
+  (async () => { try {
+    const p = await fetch("/api/planos").then((x) => x.json());
+    $("#planos").innerHTML = p.planos.map((x) => `<div class="pl ${x.destaque ? "dest" : ""}">${x.destaque ? '<span class="tag">MAIS ESCOLHIDO</span>' : ""}
+      <h3>${esc(x.nome)}</h3>${x.lancamento ? `<div class="de">${brl(x.preco)}</div>` : ""}<div class="p">${brl(x.lancamento || x.preco).replace(",90", '<small>,90</small>').replace(",00", "")}<small>/mês</small></div>
+      ${x.comparativo ? `<ul class="cmp">${x.comparativo.map(([t, ok]) => `<li class="${ok ? "sim" : "nao"}"><span aria-hidden="true">${ok ? "✓" : "✕"}</span>${esc(t)}<span class="sr">${ok ? " (incluso)" : " (não incluso)"}</span></li>`).join("")}</ul>`
+        : `<ul>${x.itens.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`}<a class="btn ${x.destaque ? "pulsa" : "sec"}" href="${x.direto && x.checkout ? esc(x.checkout) : "/entrar?plano=" + x.codigo}">${x.direto ? "Assinar agora" : "Começar agora"}</a></div>`).join("");
+    $("#planos").classList.toggle("tres", p.planos.length === 3)
+    if (!p.moedas.length) { const m = $("#moedas"); if (m) m.style.display = "none"; } else
+    $("#moedas").innerHTML = `<div><b><u-i class=i-bot></u-i> Vídeo com IA</b><br><span style="color:var(--txt2)">Pacotes de moedas, 1 moeda = 1 vídeo de 10 s</span></div>` +
+      p.moedas.map((m) => `<span><b>${m.moedas} vídeos</b> ${brl(m.preco)}</span>`).join("");
+  } catch {} })();
   // vitrine pública (prova)
   try {
     const r = await fetch("/api/publico/vitrine?limite=15").then((x) => x.json());
@@ -36,18 +48,6 @@
       const aio = new IntersectionObserver((es) => es.forEach((en) => { const v = en.target; if (en.isIntersecting) { if (!v.src) v.src = v.dataset.src; v.play().catch(() => {}); } else v.pause(); }), { threshold: 0.5 });
       document.querySelectorAll("#anims video").forEach((v) => aio.observe(v));
     } else { const s = document.getElementById("animacoes"); if (s) s.style.display = "none"; }
-  } catch {}
-  // planos ao vivo (preço e checkout vêm do servidor)
-  try {
-    const p = await fetch("/api/planos").then((x) => x.json());
-    $("#planos").innerHTML = p.planos.map((x) => `<div class="pl ${x.destaque ? "dest" : ""}">${x.destaque ? '<span class="tag">MAIS ESCOLHIDO</span>' : ""}
-      <h3>${esc(x.nome)}</h3>${x.lancamento ? `<div class="de">${brl(x.preco)}</div>` : ""}<div class="p">${brl(x.lancamento || x.preco).replace(",90", '<small>,90</small>').replace(",00", "")}<small>/mês</small></div>
-      ${x.comparativo ? `<ul class="cmp">${x.comparativo.map(([t, ok]) => `<li class="${ok ? "sim" : "nao"}"><span aria-hidden="true">${ok ? "✓" : "✕"}</span>${esc(t)}<span class="sr">${ok ? " (incluso)" : " (não incluso)"}</span></li>`).join("")}</ul>`
-        : `<ul>${x.itens.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`}<a class="btn ${x.destaque ? "pulsa" : "sec"}" href="${x.direto && x.checkout ? esc(x.checkout) : "/entrar?plano=" + x.codigo}">${x.direto ? "Assinar agora" : "Começar agora"}</a></div>`).join("");
-    $("#planos").classList.toggle("tres", p.planos.length === 3)
-    if (!p.moedas.length) { const m = $("#moedas"); if (m) m.style.display = "none"; } else
-    $("#moedas").innerHTML = `<div><b><u-i class=i-bot></u-i> Vídeo com IA</b><br><span style="color:var(--txt2)">Pacotes de moedas, 1 moeda = 1 vídeo de 10 s</span></div>` +
-      p.moedas.map((m) => `<span><b>${m.moedas} vídeos</b> ${brl(m.preco)}</span>`).join("");
   } catch {}
 
   // vídeo completo num modal, com som, e o caminho pra assinar
